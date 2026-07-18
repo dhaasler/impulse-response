@@ -1,0 +1,27 @@
+# jupyter files
+**/.pytest_cache/
+
+# Python-generated files
+**/__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# VSCode
+.vscode/
+
+# mac stuff
+.DS_Store
+*/.DS_Store
+
+# Tests notebook to quickly check new code
+tests.ipynb
+test_jupyter.ipynb
+test_script.py
+test_marimo.py
+__marimo__/
