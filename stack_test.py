@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.9"
+__generated_with = "0.23.14"
 app = marimo.App(width="medium")
 
 
@@ -87,17 +87,22 @@ def _(u):
 
     # ---------------------------- Input spectrum data ----------------------------
     spectra_filename = "cross-corr-dats/stack_ch3oh_241_allscans_freq.dat"
-    x_axis_unit = u.MHz
+    spectra_filename = "cross-corr-dats/POband7-obsfreq.dat"
+    x_axis_unit = u.GHz
     # -----------------------------------------------------------------------------
 
     # ----------------- Define the rest frequencies of the lines ------------------
     #  Make sure you input the units!
     line_rest_freqs = [
-        241700.168,
-        241767.247,
-        241791.367,
-        241806.521,
-        241813.248,
+    283586.8296,
+    283593.1805,
+    283777.603,
+    283785.4132,
+        # 241700.168,
+        # 241767.247,
+        # 241791.367,
+        # 241806.521,
+        # 241813.248,
     #    241829.629,
     #    241832.910,
     #    241842.287,
@@ -147,8 +152,8 @@ def _(
     # Read spectrum data
     spectra_table = Table.read(spectra_filename, format='ascii')
     # spectra_table = Table.read(spectra_filename, format='csv', delimiter="\t")
-    spectra_obsfreq = spectra_table['col1'].data
-    spectra_flux = spectra_table['col2'].data
+    spectra_obsfreq = spectra_table.columns[0].data
+    spectra_flux = spectra_table.columns[1].data
 
     freq_array = spectra_obsfreq * x_axis_unit
     flux_array = spectra_flux  
@@ -352,7 +357,7 @@ def _(
     v_ref,
 ):
     # 5. Plot the Stacked Result
-    main_fig, main_fig_axes = plt.subplots(6, 1, figsize=(10,10))
+    main_fig, main_fig_axes = plt.subplots(6, 1, figsize=(10,40))
 
     for ax, spec, name in zip(main_fig_axes, stacked_spectra, stacked_spectra_names):
         ax.plot(common_velocity, spec, drawstyle='steps-mid',
