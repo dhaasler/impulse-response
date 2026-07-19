@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.14"
+__generated_with = "0.23.9"
 app = marimo.App(width="medium")
 
 
@@ -87,7 +87,6 @@ def _(u):
 
     # ---------------------------- Input spectrum data ----------------------------
     spectra_filename = "cross-corr-dats/stack_ch3oh_241_allscans_freq.dat"
-    # spectra_table = Table.read(spectra_filename, format='csv', delimiter="\t")
     x_axis_unit = u.MHz
     # -----------------------------------------------------------------------------
 
@@ -147,6 +146,7 @@ def _(
 ):
     # Read spectrum data
     spectra_table = Table.read(spectra_filename, format='ascii')
+    # spectra_table = Table.read(spectra_filename, format='csv', delimiter="\t")
     spectra_obsfreq = spectra_table['col1'].data
     spectra_flux = spectra_table['col2'].data
 
@@ -246,7 +246,7 @@ def _(
             baseline_level = np.mean(f_slice[baseline_mask])
             # Level the spectrum by subtracting the baseline from the whole slice
             f_slice -= baseline_level
-        
+
             # Linear interpolation using np.interp
             interp_flux_linear_np = np.interp(common_velocity, v_slice, f_slice)
 
@@ -338,7 +338,6 @@ def _(
         "bin_reallocation_spectres",
         "bin_reallocation_manual",
     ]
-
     return common_velocity, stacked_spectra, stacked_spectra_names, v_ref
 
 
