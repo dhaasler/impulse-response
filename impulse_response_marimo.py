@@ -13,38 +13,102 @@ def _(mo):
 
 
 @app.cell
+def _(mo):
+    # File pickers
+
+    file_picker_SLIM = mo.ui.file(filetypes=[".csv"], kind="area")
+    file_picker_spectra = mo.ui.file(multiple=True, kind="area")
+
+    mo.hstack(
+        [
+            mo.vstack(
+                [
+                    mo.md("### 📂 Select SLIM File"),
+                    mo.md("_Drop your SLIM file directly below, or click to browse_"),
+                    file_picker_SLIM,
+                ]
+            ),
+            mo.vstack(
+                [
+                    mo.md("### 📂 Select Spectra File(s)"),
+                    mo.md("_Drop your spectrum file(s) directly below, or click to browse_"),
+                    file_picker_spectra,
+                ]
+            ),
+        ],
+        widths="equal", # Makes both columns share equal width
+        align="start",  # Keeps titles aligned at the top
+    )
+    return file_picker_SLIM, file_picker_spectra
+
+
+@app.cell
+def _(freqs, mo, stacking_freqs):
+    # Show Stack freqs list if list is set to None
+
+    if stacking_freqs is None:
+        freq_selector = mo.ui.multiselect(
+            options=freqs,
+            value=freqs,
+            label="Frequencies",
+        )
+
+        stacking_output = mo.vstack(
+            [
+                mo.md(
+                    """
+                    ### Select Stacking Frequencies
+                    Choose which frequencies you want to include in the stack analysis below:
+                    """
+                ),
+                freq_selector,
+            ]
+        )
+    else:
+        stacking_output = None
+
+    stacking_output
+    return (freq_selector,)
+
+
+@app.cell
+def _(freq_selector, stacking_freqs):
+    # Show Stack freqs list if list is set to None
+    if stacking_freqs is None:
+        selected_stacking_freqs = freq_selector.value
+    else:
+        selected_stacking_freqs = stacking_freqs
+    return (selected_stacking_freqs,)
+
+
+@app.cell
 def _(u):
-    # User input
+    # User input (marimo notebook version)
 
     # Set SLIM data
-    molecule = "PO,v=0"  # Formula string from MADCUBA
+    molecule = 'PO,v=0'  # Formula string from MADCUBA
     slim_freq_unit = u.MHz
-    slim_filename = "cross-corr-dats/slim_table_region_10.csv"
-    slim_filename = "cross-corr-dats/SLIM-table-SO.csv"
 
-    # Set spectra data (can be multiple files)
-    spectra_filenames = [
-        "cross-corr-dats/01_IRAS_16293-2422_spw27.dat",
-        "cross-corr-dats/01_IRAS_16293-2422_spw29.dat",
-        # "cross-corr-dats/POband7-obsfreq.dat",
-    ]
     spectra_freq_unit = u.GHz
     spectra_flux_unit = u.Jy
 
-    # Freq list
+    # Stacking freq list
     # Here the user can select which transitions to use for the stacking.
     # If set to 'all', the program uses every transition found within the spectra
     # files
-    stacking_freqs = [
-        152656.979,
-        152680.282,
-        152855.454,
-        152888.128,
-        283586.8296,
-        283593.1805,
-        283777.603,
-        283785.4132,
-    ]
+    # If set to None, or empty, the program outputs a list of found frequencies to select
+    # stacking_freqs = [
+    #     # 109252.22,
+    #     152656.979,
+    #     152680.282,
+    #     152855.454,
+    #     152888.128,
+    #     283586.8296,
+    #     283593.1805,
+    #     283777.603,
+    #     283785.4132,
+    # ]
+    stacking_freqs = None
     stacking_freqs_unit = u.MHz
 
 
@@ -66,7 +130,7 @@ def _(u):
 
     # If False, the program uses the velocity array for the first line and
     # custom_velocity_axes_params are ignored:
-    use_custom_velocity_axes = True
+    use_custom_velocity_axes = False
     # If use_custom_velocity_axes is True:
     custom_velocity_axes_params = {
         'ref_vel': 0,    # reference velocity to resample velocity axis
@@ -81,9 +145,7 @@ def _(u):
         custom_velocity_axes_params,
         molecule,
         resample_method,
-        slim_filename,
         slim_freq_unit,
-        spectra_filenames,
         spectra_flux_unit,
         spectra_freq_unit,
         stacking_freqs,
@@ -95,107 +157,199 @@ def _(u):
     )
 
 
+@app.cell(hide_code=True)
+def _():
+    # # User input (script version)
+
+    # # Set SLIM data
+    # molecule = 'PO,v=0'  # Formula string from MADCUBA
+    # slim_freq_unit = u.MHz
+    # # slim_filename = 'cross-corr-dats/slim_table_region_10.csv'
+    # # slim_filename = 'cross-corr-dats/SLIM-table-SO.csv'
+
+    # # Set spectra data (can be multiple files)
+    # # spectra_filenames = [
+    # #     'cross-corr-dats/01_IRAS_16293-2422_spw27.dat',
+    # #     'cross-corr-dats/01_IRAS_16293-2422_spw29.dat',
+    # #     # 'cross-corr-dats/POband7-obsfreq.dat',
+    # # ]
+    # spectra_freq_unit = u.GHz
+    # spectra_flux_unit = u.Jy
+
+    # # Stacking freq list
+    # # Here the user can select which transitions to use for the stacking.
+    # # If set to 'all', the program uses every transition found within the spectra
+    # # files
+    # # If set to None, or empty, the program outputs a list of found frequencies to select
+    # stacking_freqs = [
+    #     # 109252.22,
+    #     152656.979,
+    #     152680.282,
+    #     152855.454,
+    #     152888.128,
+    #     283586.8296,
+    #     283593.1805,
+    #     283777.603,
+    #     283785.4132,
+    # ]
+    # stacking_freqs_unit = u.MHz
+
+
+    # # Stacking parameters
+
+    # stacking_weighting = 'equal'    # 'equal' or 'sigma'
+
+    # stacking_window_params = {
+    #     'min_vel': -60,    # min velocity (km/s) of the window around each line
+    #     'max_vel': 60,    # max velocity (km/s) of the window around each line
+    # }
+
+    # baseline_window_params = {
+    #     'min_vel': -1,    # min velocity (km/s) of the window around each line
+    #     'max_vel': 1,    # max velocity (km/s) of the window around each line
+    # }
+
+    # # Resampling parameters
+
+    # # If False, the program uses the velocity array for the first line and
+    # # custom_velocity_axes_params are ignored:
+    # use_custom_velocity_axes = False
+    # # If use_custom_velocity_axes is True:
+    # custom_velocity_axes_params = {
+    #     'ref_vel': 0,    # reference velocity to resample velocity axis
+    #     'channel_width': 1    # channel width in velocity (km/s)
+    # }
+
+    # resample_method = 'linear'  # 'linear' (default) or 'flux-conserving' (CLASS)
+
+    # # Logging
+    # view_each_transition = True
+    return
+
+
+@app.cell
+def _(BytesIO, Table, file_picker_SLIM, mo):
+    # The SLIM Gate: Stop immediately if the tuple is empty
+
+    mo.stop(
+        len(file_picker_SLIM.value) == 0, 
+        mo.md("### Please upload a SLIM file above to begin...")
+    )
+
+    # 2. The Processing: This code will NEVER run unless a file is uploaded
+    try:
+        # 1. Grab the raw byte contents of the first uploaded file
+        slim_raw_bytes = file_picker_SLIM.contents(0)
+
+        # 2. Wrap the bytes into an in-memory virtual file stream
+        slim_file = BytesIO(slim_raw_bytes)
+
+        # 3. Read the table
+        slim_table = Table.read(slim_file, format='csv', delimiter=",")
+
+    except Exception as e:
+        # If the file is corrupted or not a valid FITS, catch the error and show it
+        mo.stop(True, mo.md(f"❌ **Error parsing SLIM file:** {str(e)}"))
+
+    mo.stop(
+        len(file_picker_SLIM.value) == 0, 
+        mo.md("### Please upload at lest one spectrum file above to begin...")
+    )
+    return (slim_table,)
+
+
 @app.cell
 def _(
-    corr,
-    lags,
-    line_stacked,
-    np,
-    plt,
-    use_custom_velocity_axes,
-    v_center,
-    v_ref,
+    BytesIO,
+    Spectrum,
+    Table,
+    file_picker_spectra,
+    mo,
+    spectra_flux_unit,
+    spectra_freq_unit,
 ):
-    # Plot results
+    # The SLIM Gate: Stop immediately if the tuple is empty
 
-    main_fig, main_fig_axes = plt.subplots(1, 2, figsize=(12,5))
+    mo.stop(
+        len(file_picker_spectra.value) == 0, 
+        mo.md("### Please upload one or more spectra files above to begin...")
+    )
 
-
-    main_fig_axes[0].plot(line_stacked.spectral_axis, line_stacked.flux, drawstyle='steps-mid',
-                    color='black', lw=2)
-    main_fig_axes[0].plot(line_stacked.spectral_axis, line_stacked.model.flux,
-                    color='red', lw=2)
-
-    if use_custom_velocity_axes:
-        main_fig_axes[0].axvline(v_ref, color='red', linestyle='--', alpha=0.7)
-    main_fig_axes[0].grid(True, alpha=0.3)
-
-    main_fig_axes[0].set_xlabel('Velocity (km/s)')
-    main_fig_axes[0].set_ylabel('Flux / Intensity')
-    main_fig_axes[0].set_title('Stacked Molecular Emission Lines')
-    # main_fig_axes[0].set_xlim(-20, 20)
-    main_fig_axes[0].set_ylim(-0.005, 0.0052)
-
-    main_fig_axes[1].plot(lags, corr, color='black')
-    main_fig_axes[1].set_xlabel("Velocity shift (km/s)")
-    main_fig_axes[1].set_ylabel("S/N")
-    main_fig_axes[1].set_title("Impulse response")
-    # main_fig_axes[1].set_xlim(-20, 20)
-
-    peak_shift = lags[np.argmax(corr)]
-    # print(f"Peak correlation S/N            = {peak_sn:.2f}")
-    print(f"Recovered shift               = {peak_shift:.3f} km/s")
-    print(f"Line centroid                 = {v_center:.3f} km/s")
-    # print(f"Detected velocity of first comp = {peak_vel:.3f} km/s")
-
-    plt.tight_layout()
-    plt.show()
-    return
-
-
-@app.cell
-def _(lines, model, plt, u, view_each_transition):
-    # Plot individual lines
-
-    if view_each_transition:
-
-        figsize = (6, 8)
-        fig, axes = plt.subplots(4, 1, figsize=figsize)
-
-        for ax, _line in zip(axes, lines):
-
-            ax.plot(
-                _line.spectral_axis.to(u.km/u.s),
-                _line.flux,
-                drawstyle="steps-mid",
-                color="black",
-                alpha=0.8,
-            )
-            ax.plot(
-                _line.spectral_axis.to(u.km/u.s),
-                _line.model.flux,
-                drawstyle="steps-mid",
-                color="red",
+    # 2. The Processing: This code will NEVER run unless a file is uploaded
+    try:
+        # 1. Grab raw bytes for ALL uploaded files using their index/length
+        # or iterate directly over file_picker_SLIM.value
+        spectra_filenames = [
+            BytesIO(file_picker_spectra.contents(i)) 
+            for i in range(len(file_picker_spectra.value))
+        ]
+    
+        # 3. Read the tables
+        # Store Spectrum and Table just in case.
+        spectra_tables = []
+        spectra = []
+        for filename in spectra_filenames:
+            spectrum_table = Table.read(filename, format="ascii")
+            spectra_tables.append(spectrum_table)
+            spectra.append(
+                Spectrum(
+                    spectral_axis=spectrum_table.columns[0].data * spectra_freq_unit,
+                    flux=spectrum_table.columns[1].data * spectra_flux_unit,
+                )
             )
 
-            # ax.axvline(0.0, color="k", ls="--", alpha=0.5)
-
-            ax.set_ylabel("Intensity")
-            ax.set_xlabel("Velocity [km/s]")
-            ax.set_title("SLIM generated model over observed spectrum")
-            ax.text(
-                0.02,
-                0.98,
-                f"{_line.rest_value}",
-                ha="left",
-                va="top",
-                transform=ax.transAxes,
-            )
-
-            ax.set_xlim(-40, 40)
-            ax.set_ylim(-1.5 * model.max(), 2 * model.max())
-
-        plt.tight_layout()
-        # plt.savefig(f"{_line.rest_value}-mult.png", dpi=300)
-        plt.show()
-    return
+    except Exception as e:
+        # If the file is corrupted or not a valid FITS, catch the error and show it
+        mo.stop(True, mo.md(f"❌ **Error parsing spectrum file:** {str(e)}"))
+    return (spectra,)
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    Select your desired parameters.
-    """)
+def _(lines_fig, main_fig, mo, peak_shift, v_center):
+    # Show results
+    main_view = mo.vstack(
+        [
+            mo.md("## Impulse Response results"),
+            mo.hstack(
+                [
+                    # mo.stat(
+                    #     label="Peak S/N", value=f"{peak_sn:.3f} km/s"
+                    # ),
+                    mo.stat(
+                        label="Recovered Shift", value=f"{peak_shift:.3f} km/s"
+                    ),
+                    mo.stat(
+                        label="Line Centroid", value=f"{v_center:.3f} km/s"
+                    ),
+                    # mo.stat(
+                    #     label="LDetected velocity of first comp", value=f"{peak_vel:.3f:.3f} km/s"
+                    # ),
+                ],
+                justify="start",
+            ),
+            main_fig,
+        ]
+    )
+
+    # Optional figure showing selected lines
+
+    # Render accordion only if lines_fig exists
+    if "lines_fig" in locals() and lines_fig is not None:
+        optional_view = mo.accordion(
+            {
+                "🔍 View Individual Spectra Breakdown": mo.vstack(
+                    [
+                        mo.md("Detailed plot showing each spectrum used in the impulse response calculation:"),
+                        lines_fig,
+                    ]
+                )
+            }
+        )
+        output = mo.vstack([main_view, optional_view])
+    else:
+        output = main_view
+
+    output
     return
 
 
@@ -251,18 +405,20 @@ def _():
 
     import marimo as mo
 
-    import numpy as np
-    from dataclasses import dataclass, field
     from astropy.table import Table
     from astropy.coordinates import SpectralCoord
     import astropy.units as u
+    from dataclasses import dataclass, field
+    from io import BytesIO
     import matplotlib.pyplot as plt
+    import numpy as np
     from specutils import Spectrum
     from specutils.manipulation import LinearInterpolatedResampler
     from specutils.manipulation import FluxConservingResampler
     from typing import Optional
 
     return (
+        BytesIO,
         FluxConservingResampler,
         LinearInterpolatedResampler,
         Optional,
@@ -375,18 +531,13 @@ def _(Optional, Spectrum, dataclass, field, np, u):
 
 @app.cell
 def _(
-    Spectrum,
-    Table,
     molecule,
     np,
-    slim_filename,
     slim_freq_unit,
-    spectra_filenames,
-    spectra_flux_unit,
+    slim_table,
+    spectra,
     spectra_freq_unit,
-    stacking_freqs,
     stacking_freqs_unit,
-    u,
 ):
     # Data preparation
 
@@ -394,29 +545,33 @@ def _(
     if (spectra_freq_unit.physical_type != 'frequency'
         or stacking_freqs_unit.physical_type != 'frequency'
         or slim_freq_unit.physical_type != 'frequency'):
-        raise TypeError("Freq variables must be of physical type 'frequency'!")
+        raise TypeError(
+            "To avoid over-complicating the user input parameters, freq variables " +
+            "must be of physical type 'frequency'. Use spectra files with X axis " +
+            "in observed frequency."
+        )
 
     # SLIM and Spectra preparation
 
-    slim_table = Table.read(slim_filename, format='csv', delimiter=",")
+    # slim_table = Table.read(slim_filename, format='csv', delimiter=",")  # moved to cell on top for notebook
     slim_table["Frequency"].unit = slim_freq_unit
 
     # Molecule filter
     molecule_filter = (slim_table["Formula"] == molecule)
 
     # Frequency filter
-    # Using Spectra class. Stores Spectrum and Table just in case
-    spectra_tables = []
-    spectra = []
-    for filename in spectra_filenames:
-        spectrum_table = Table.read(filename, format="ascii")
-        spectra_tables.append(spectrum_table)
-        spectra.append(
-            Spectrum(
-                spectral_axis=spectrum_table.columns[0].data * spectra_freq_unit,
-                flux=spectrum_table.columns[1].data * spectra_flux_unit,
-            )
-        )
+    # # Store Spectrum and Table just in case.  # moved to cell on top for notebook
+    # spectra_tables = []
+    # spectra = []
+    # for filename in spectra_filenames:
+    #     spectrum_table = Table.read(filename, format="ascii")
+    #     spectra_tables.append(spectrum_table)
+    #     spectra.append(
+    #         Spectrum(
+    #             spectral_axis=spectrum_table.columns[0].data * spectra_freq_unit,
+    #             flux=spectrum_table.columns[1].data * spectra_flux_unit,
+    #         )
+    #     )
     freq_range_filter = np.zeros(len(slim_table), dtype=bool)
     for _spectrum in spectra:
         spec_freq = _spectrum.spectral_axis
@@ -425,9 +580,20 @@ def _(
             (slim_table["Frequency"] < spec_freq.max())
         )
     slim_table_mol_freq = slim_table[molecule_filter & freq_range_filter]
+    freqs = sorted(np.unique(slim_table_mol_freq["Frequency"]))
+    return freqs, slim_table_mol_freq
 
+
+@app.cell
+def _(
+    np,
+    selected_stacking_freqs,
+    slim_table_mol_freq,
+    stacking_freqs_unit,
+    u,
+):
     # Selected transitions filter
-    selected_freqs = stacking_freqs * stacking_freqs_unit
+    selected_freqs = selected_stacking_freqs * stacking_freqs_unit
     table_freqs = slim_table_mol_freq["Frequency"].to(u.GHz).value
     selected_freqs_filter = np.zeros(len(table_freqs), dtype=bool)
     for f in selected_freqs.to(u.GHz).value:
@@ -438,8 +604,7 @@ def _(
             atol=1e-6,  # Hz-precision when comparing MHz
         )
     slim_table_stacking = slim_table_mol_freq[selected_freqs_filter]
-    slim_table_stacking
-    return slim_table_stacking, spectra
+    return (slim_table_stacking,)
 
 
 @app.cell
@@ -487,11 +652,11 @@ def _(
             group["Width"],
         ])
 
-        for spectrum in spectra:
+        for _spectrum in spectra:
 
             # Check if transition is inside this spectrum
             if not (
-                spectrum.spectral_axis.min() <= rest_freq <= spectrum.spectral_axis.max()
+                _spectrum.spectral_axis.min() <= rest_freq <= _spectrum.spectral_axis.max()
             ):
                 continue
 
@@ -500,13 +665,13 @@ def _(
             # Create models
 
             # Velocity axis for this spectrum
-            spec_vel_value = spectrum.spectral_axis.to(
+            spec_vel_value = _spectrum.spectral_axis.to(
                 u.km / u.s,
                 doppler_rest=rest_freq,
                 doppler_convention="radio",
             ).value
             # Observed flux
-            spectrum_flux_value = spectrum.flux.value
+            _spectrum_flux_value = _spectrum.flux.value
             # Create Gaussian model
             model = np.zeros_like(spec_vel_value)
 
@@ -516,17 +681,17 @@ def _(
             # Create the LineSpectrum objects
             observed_spectrum = Spectrum(
                 spectral_axis=SpectralCoord(
-                    spectrum.spectral_axis,
+                    _spectrum.spectral_axis,
                     doppler_rest=rest_freq,
                     doppler_convention="radio",
                 ),
-                flux=spectrum.flux,
+                flux=_spectrum.flux,
                 rest_value=rest_freq,
                 velocity_convention="radio",
             )
             model_spectrum = Spectrum(
                 spectral_axis=SpectralCoord(
-                    spectrum.spectral_axis,
+                    _spectrum.spectral_axis,
                     doppler_rest=rest_freq,
                     doppler_convention="radio",
                 ),
@@ -757,6 +922,103 @@ def _(line_stacked, np, u):
     corr /= np.std(corr)
     # corr /= (np.std(corr)**2)
     return corr, lags, v_center
+
+
+@app.cell
+def _(
+    corr,
+    lags,
+    line_stacked,
+    np,
+    plt,
+    use_custom_velocity_axes,
+    v_center,
+    v_ref,
+):
+    # Plot main results
+
+    main_fig, main_fig_axes = plt.subplots(1, 2, figsize=(12,5))
+
+
+    main_fig_axes[0].plot(line_stacked.spectral_axis, line_stacked.flux, drawstyle='steps-mid',
+                    color='black', lw=2)
+    main_fig_axes[0].plot(line_stacked.spectral_axis, line_stacked.model.flux,
+                    color='red', lw=2)
+
+    if use_custom_velocity_axes:
+        main_fig_axes[0].axvline(v_ref, color='red', linestyle='--', alpha=0.7)
+    main_fig_axes[0].grid(True, alpha=0.3)
+
+    main_fig_axes[0].set_xlabel('Velocity (km/s)')
+    main_fig_axes[0].set_ylabel('Flux / Intensity')
+    main_fig_axes[0].set_title('Stacked Molecular Emission Lines')
+    # main_fig_axes[0].set_xlim(-20, 20)
+    main_fig_axes[0].set_ylim(-0.005, 0.0052)
+
+    main_fig_axes[1].plot(lags, corr, color='black')
+    main_fig_axes[1].set_xlabel("Velocity shift (km/s)")
+    main_fig_axes[1].set_ylabel("S/N")
+    main_fig_axes[1].set_title("Impulse response")
+    # main_fig_axes[1].set_xlim(-20, 20)
+
+    peak_shift = lags[np.argmax(corr)]
+
+    # print(f"Peak correlation S/N            = {peak_sn:.2f}")
+    print(f"Recovered shift               = {peak_shift:.3f} km/s")
+    print(f"Line centroid                 = {v_center:.3f} km/s")
+    # print(f"Detected velocity of first comp = {peak_vel:.3f} km/s")
+
+    plt.tight_layout()
+    return main_fig, peak_shift
+
+
+@app.cell
+def _(lines, model, plt, u, view_each_transition):
+    # Plot individual lines
+
+    if view_each_transition:
+
+        figsize = (6, 8)
+        lines_fig, lines_axes = plt.subplots(4, 1, figsize=figsize)
+
+        for _ax, _line in zip(lines_axes, lines):
+
+            _ax.plot(
+                _line.spectral_axis.to(u.km/u.s),
+                _line.flux,
+                drawstyle="steps-mid",
+                color="black",
+                alpha=0.8,
+            )
+            _ax.plot(
+                _line.spectral_axis.to(u.km/u.s),
+                _line.model.flux,
+                drawstyle="steps-mid",
+                color="red",
+            )
+
+            # _ax.axvline(0.0, color="k", ls="--", alpha=0.5)
+
+            _ax.set_ylabel("Intensity")
+            _ax.set_xlabel("Velocity [km/s]")
+            _ax.set_title("SLIM generated model over observed spectrum")
+            _ax.text(
+                0.02,
+                0.98,
+                f"{_line.rest_value}",
+                ha="left",
+                va="top",
+                transform=_ax.transAxes,
+            )
+
+            _ax.set_xlim(-40, 40)
+            _ax.set_ylim(-1.5 * model.max(), 2 * model.max())
+
+        plt.tight_layout()
+        # plt.savefig(f"{_line.rest_value}-mult.png", dpi=300)
+    else:
+        lines_fig = None
+    return (lines_fig,)
 
 
 if __name__ == "__main__":
