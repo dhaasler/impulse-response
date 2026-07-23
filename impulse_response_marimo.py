@@ -19,21 +19,17 @@ def _(mo):
     file_picker_SLIM = mo.ui.file(filetypes=[".csv"], kind="area")
     file_picker_spectra = mo.ui.file(multiple=True, kind="area")               
 
-    mo.hstack(
+    files_layout = mo.hstack(
         [
             mo.vstack(
                 [
                     mo.md("### 📂 Select SLIM File"),
-                    mo.md("_Drop your SLIM file directly below, "
-                          "or click to browse_"),
                     file_picker_SLIM,
                 ]
             ),
             mo.vstack(
                 [
                     mo.md("### 📂 Select Spectra File(s)"),
-                    mo.md("_Drop your spectrum file(s) directly below, "
-                          "or click to browse_"),
                     file_picker_spectra,
                 ]
             ),
@@ -41,7 +37,45 @@ def _(mo):
         widths="equal", # Makes both columns share equal width
         align="start",  # Keeps titles aligned at the top
     )
-    return file_picker_SLIM, file_picker_spectra
+
+    # --- General & Units ---
+    molecule_ui = mo.ui.text(value="PO,v=0", label="Molecule Formula")
+
+    freq_units_list = ["GHz", "MHz", "kHz", "Hz"]
+    flux_units_list = ["Jy", "mJy", "uJy", "K", "mK"]
+
+    slim_freq_unit_ui = mo.ui.dropdown(
+        options=freq_units_list, value="MHz", label="SLIM Frequency Unit"
+    )
+    spectra_freq_unit_ui = mo.ui.dropdown(
+        options=freq_units_list, value="GHz", label="Spectra Frequency Unit"
+    )
+    spectra_flux_unit_ui = mo.ui.dropdown(
+        options=flux_units_list, value="Jy", label="Spectra Flux Unit"
+    )
+
+    # Render
+    mo.vstack([
+        files_layout,
+        mo.md("---"),
+        mo.md("### 🏷️ Target molecule & Input units"),
+        mo.hstack([
+            molecule_ui,
+            slim_freq_unit_ui,
+        ], justify="start", gap=2),
+        mo.hstack([
+            spectra_freq_unit_ui,
+            spectra_flux_unit_ui,
+        ], justify="start", gap=2)
+    ])
+    return (
+        file_picker_SLIM,
+        file_picker_spectra,
+        molecule_ui,
+        slim_freq_unit_ui,
+        spectra_flux_unit_ui,
+        spectra_freq_unit_ui,
+    )
 
 
 @app.cell
@@ -50,7 +84,7 @@ def _(BytesIO, Table, file_picker_SLIM, mo):
 
     mo.stop(
         len(file_picker_SLIM.value) == 0,
-        mo.md("### Please upload a SLIM file above to begin..."),
+        mo.md("### 👈 Please upload a SLIM file above to begin..."),
     )
 
     # 2. The Processing: This code will NEVER run unless a file is uploaded
@@ -74,16 +108,20 @@ def _(
     Table,
     file_picker_spectra,
     mo,
-    spectra_flux_unit,
-    spectra_freq_unit,
+    spectra_flux_unit_ui,
+    spectra_freq_unit_ui,
+    u,
 ):
     # The SLIM Gate: Stop immediately if the tuple is empty
 
     mo.stop(
         len(file_picker_spectra.value) == 0,
-        mo.md("### Please upload one or more spectrum files above to "
+        mo.md("### 👈 Please upload one or more spectrum files above to "
               "begin..."),
     )
+
+    spectra_freq_unit = getattr(u, spectra_freq_unit_ui.value)
+    spectra_flux_unit = getattr(u, spectra_flux_unit_ui.value)
 
     # 2. The Processing: This code will NEVER run unless a file is uploaded
     try:
@@ -108,30 +146,55 @@ def _(
 
     except Exception as e:
         mo.stop(True, mo.md(f"❌ **Error parsing spectrum file:** {str(e)}"))
-    return (spectra,)
+    return spectra, spectra_flux_unit
 
 
 @app.cell
-def _(mo):
-    # 1. Molecule input (Text)
-    molecule_ui = mo.ui.text(value="PO,v=0", label="Molecule Formula")
+def _(molecule_ui, np, slim_freq_unit_ui, slim_table, spectra, u):
+    # Read SLIM and spec data to get the frequencies found list before setting the rest of the UI
 
-    # 2. Units selection (Dropdown)
-    freq_units_list = ["GHz", "MHz", "kHz", "Hz"]
-    flux_units_list = ["Jy", "mJy", "uJy", "K", "mK"]
+    # Set SLIM data
+    slim_freq_unit = getattr(u, slim_freq_unit_ui.value)
+    slim_table["Frequency"].unit = slim_freq_unit
 
-    slim_freq_unit_ui = mo.ui.dropdown(
-        options=freq_units_list, value="MHz", label="SLIM Frequency Unit"
+    molecule = molecule_ui.value
+    molecule_filter = slim_table["Formula"] == molecule
+
+    freq_range_filter = np.zeros(len(slim_table), dtype=bool)
+    for _spectrum in spectra:
+        spec_freq = _spectrum.spectral_axis
+        freq_range_filter |= (slim_table["Frequency"] > spec_freq.min()) & (
+            slim_table["Frequency"] < spec_freq.max()
+        )
+    slim_table_mol_freq = slim_table[molecule_filter & freq_range_filter]
+    freqs = sorted(np.unique(slim_table_mol_freq["Frequency"]))
+    return freqs, slim_table_mol_freq
+
+
+@app.cell
+def _(freqs, mo):
+    # Post-upload processing controls
+
+    # --- Stacking & Resampling ---
+    stack_weighting_ui = mo.ui.dropdown(
+        options=["equal", "sigma"], value="sigma", label="Stacking weight"
     )
-    spectra_freq_unit_ui = mo.ui.dropdown(
-        options=freq_units_list, value="GHz", label="Spectra Frequency Unit"
-    )
-    spectra_flux_unit_ui = mo.ui.dropdown(
-        options=flux_units_list, value="Jy", label="Spectra Flux Unit"
+    resample_method_ui = mo.ui.dropdown(
+        options=["linear", "flux conserving"],
+        value="flux conserving",
+        label="Resample method"
     )
 
+    use_custom_velocity_axes_ui = mo.ui.switch(
+        label="Use custom velocity axes"
+    )
+    ref_vel_ui = mo.ui.number(value=0, label="Ref Vel (km/s)")
+    channel_width_ui = mo.ui.number(value=1, label="Channel Width (km/s)")
 
-    # 3. Window parameters options
+
+
+    # --- Windows ---
+
     # Option A: Dual-thumb range slider
     stacking_window_ui = mo.ui.range_slider(
         start=-100,
@@ -154,45 +217,42 @@ def _(mo):
         max_vel=mo.ui.number(value=1, label="Max"),
     )
 
-    # Stacking weighting
-    stack_weighting_ui = mo.ui.dropdown(
-        options=["equal", "sigma"], value="sigma", label="Stacking weight"
-    )
 
-    # Stacking weighting
-    stack_weighting_ui = mo.ui.dropdown(
-        options=["equal", "sigma"], value="sigma", label="Stacking weight"
-    )
 
-    # Resampling parameters
-    use_custom_velocity_axes_ui = mo.ui.switch(
-        label="Use custom velocity axes"
+    # --- Transitions / Frequencies Selection ---
+    stacking_mode_ui = mo.ui.dropdown(
+        options=["All", "Select from dataset", "Custom list"],
+        value="All",
+        label="Transitions to Stack"
     )
-    ref_vel_ui = mo.ui.number(value=0, label="Ref Vel (km/s)")
-    channel_width_ui = mo.ui.number(value=1, label="Channel Width (km/s)")
-
-    # Stacking weighting
-    resample_method_ui = mo.ui.dropdown(
-        options=["Linear", "flux conserving"],
-        value="flux conserving",
-        label="Resample method"
+    freq_options = [str(f) for f in freqs]
+    dataset_freq_selector_ui = mo.ui.multiselect(
+        options=freq_options,
+        value=freq_options,
+        label="Select Transitions from Dataset",
+    )
+    custom_freqs_text_ui = mo.ui.text_area(
+        value="152656.979, 152680.282, 152855.454",
+        placeholder="152656.979, 152680.282"
+    )
+    stacking_freqs_unit_ui = mo.ui.dropdown(
+        options=["MHz", "GHz", "kHz", "Hz"],
+        value="MHz",
+        label="Enter Frequencies separated by commas or newlines. Unit: "
     )
 
     # Logging
-    view_each_transition_ui = mo.ui.checkbox(
-        label="View each transition"
-    )
-
+    view_each_transition_ui = mo.ui.checkbox(value=True, label="View each transition")
     return (
         baseline_window_ui,
         channel_width_ui,
-        molecule_ui,
+        custom_freqs_text_ui,
+        dataset_freq_selector_ui,
         ref_vel_ui,
         resample_method_ui,
-        slim_freq_unit_ui,
-        spectra_flux_unit_ui,
-        spectra_freq_unit_ui,
         stack_weighting_ui,
+        stacking_freqs_unit_ui,
+        stacking_mode_ui,
         stacking_window_ui,
         use_custom_velocity_axes_ui,
         view_each_transition_ui,
@@ -203,17 +263,16 @@ def _(mo):
 def _(
     baseline_window_ui,
     channel_width_ui,
+    custom_freqs_text_ui,
+    dataset_freq_selector_ui,
     mo,
-    molecule_ui,
     ref_vel_ui,
     resample_method_ui,
-    slim_freq_unit_ui,
-    spectra_flux_unit_ui,
-    spectra_freq_unit_ui,
     stack_weighting_ui,
+    stacking_freqs_unit_ui,
+    stacking_mode_ui,
     stacking_window_ui,
     use_custom_velocity_axes_ui,
-    view_each_transition_ui,
 ):
     # Build the conditional UI section for custom velocity axes
     if use_custom_velocity_axes_ui.value:
@@ -227,162 +286,43 @@ def _(
     else:
         velocity_section = use_custom_velocity_axes_ui
 
-    # Display controls in two balanced columns
-    mo.hstack(
-        [
-            mo.vstack(
-                [
-                    molecule_ui,
-                    slim_freq_unit_ui,
-                    spectra_freq_unit_ui,
-                    spectra_flux_unit_ui,
-                    stack_weighting_ui,
-                    velocity_section,  # Dynamically expands when checked!
-                    resample_method_ui,
-                    view_each_transition_ui,
-                ],
-                gap=1,
-            ),
-            mo.vstack(
-                [
-                    stacking_window_ui,
-                    baseline_window_ui,
-                ],
-                gap=1,
-            ),
-        ],
-        justify="start",
-        gap=3,
-    )
-    return
-
-
-@app.cell(hide_code=True)
-def _():
-    # # Group all your inputs into a single UI element dictionary
-
-    # config_form = (
-    #     mo.ui.dictionary(
-    #         {
-    #             "molecule": mo.ui.text(value="PO,v=0", label="Molecule Formula"),
-    #             "slim_freq_unit": mo.ui.dropdown(
-    #                 options=["MHz", "GHz", "kHz", "Hz"],
-    #                 value="MHz",
-    #                 label="SLIM Freq Unit",
-    #             ),
-    #             "spectra_freq_unit": mo.ui.dropdown(
-    #                 options=["GHz", "MHz", "kHz", "Hz"],
-    #                 value="GHz",
-    #                 label="Spectra Freq Unit",
-    #             ),
-    #             "spectra_flux_unit": mo.ui.dropdown(
-    #                 options=["Jy", "mJy", "uJy"],
-    #                 value="Jy",
-    #                 label="Spectra Flux Unit",
-    #             ),
-    #             "stacking_window": mo.ui.range_slider(
-    #                 start=-100,
-    #                 stop=100,
-    #                 value=[-60, 60],
-    #                 step=1,
-    #                 show_value=True,
-    #                 label="Stacking Window Vel (km/s)",
-    #             ),
-    #             "baseline_window": mo.ui.dictionary(
-    #                 {
-    #                     "min_vel": mo.ui.number(value=-1, label="Min Baseline Vel (km/s)"),
-    #                     "max_vel": mo.ui.number(value=1, label="Max Baseline Vel (km/s)"),
-    #                 }
-    #             ),
-    #         }
-    #     )
-    #     .form(label="Apply Settings")
-    # )
-
-    # # Display the form in the notebook
-    # config_form
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ---
-    """)
-    return
-
-
-@app.cell
-def _(mo):
-    # 1. Mode selector
-    stacking_mode_ui = mo.ui.dropdown(
-        options=["All", "Select from dataset", "Custom list (comma-separated)"],
-        value="All",
-        label="Transitions to Stack"
-    )
-
-    # 2. Text input for typed custom frequencies (used if "Custom list" mode is active)
-    custom_freqs_text_ui = mo.ui.text_area(
-        value="152656.979, 152680.282, 152855.454",
-        placeholder="152656.979, 152680.282"
-    )
-
-    # 3. Unit selector for custom frequencies
-    stacking_freqs_unit_ui = mo.ui.dropdown(
-        options=["MHz", "GHz", "kHz", "Hz"],
-        value="MHz",
-        label="Enter Frequencies separated by commas or newlines. Unit: "
-    )
-    return custom_freqs_text_ui, stacking_freqs_unit_ui, stacking_mode_ui
-
-
-@app.cell
-def _(freqs, mo):
-    # Replace `found_freqs_from_data` with your actual dataset variable name
-    # (e.g., from your table/spectrum load step)
-    found_freqs_from_data = freqs
-
-    # Convert numbers to strings for the dropdown options
-    freq_options = [str(f) for f in found_freqs_from_data]
-
-    # Create multiselect with all options pre-selected by default
-    dataset_freq_selector_ui = mo.ui.multiselect(
-        options=freq_options,
-        value=freq_options,  # Default: all selected
-        label="Select Transitions from Dataset",
-    )
-    return (dataset_freq_selector_ui,)
-
-
-@app.cell
-def _(
-    custom_freqs_text_ui,
-    dataset_freq_selector_ui,
-    mo,
-    stacking_freqs_unit_ui,
-    stacking_mode_ui,
-):
-    # Render UI conditionally depending on chosen mode
+    # Dynamic section for transitions selection
     if stacking_mode_ui.value == "Select from dataset":
-        # Show mode dropdown + multiselect from loaded spectrum
-        stacking_freq_section = mo.vstack([
-            stacking_mode_ui,
-            dataset_freq_selector_ui  # Your multiselect from table/spectrum data
-        ])
-    elif stacking_mode_ui.value == "Custom list (comma-separated)":
-        # Show mode dropdown + text box for typed values
-        stacking_freq_section = mo.vstack([
-            stacking_mode_ui,
-            mo.vstack([
-                stacking_freqs_unit_ui,
-                custom_freqs_text_ui,
-            ], gap=1)
-        ])
+        stacking_freq_section = dataset_freq_selector_ui
+    elif stacking_mode_ui.value == "Custom list":
+        stacking_freq_section = mo.vstack([stacking_freqs_unit_ui, custom_freqs_text_ui], gap=1)
     else:
-        # "All" mode: Just show the dropdown
-        stacking_freq_section = stacking_mode_ui
+        stacking_freq_section = mo.md("_Using all detected transitions from dataset._")
 
-    stacking_freq_section
+    # Display controls in two balanced columns
+    mo.vstack(
+        [
+            mo.md("### Resampling"),
+            mo.hstack(
+                [
+                    resample_method_ui,
+                    velocity_section,
+                ],
+                justify="start",
+                gap=3,
+            ),
+            mo.md("### Stacking"),
+            mo.hstack(
+                [
+                    stack_weighting_ui,
+                    stacking_window_ui,
+                ],
+                justify="start",
+                gap=3,
+            ),
+            baseline_window_ui,
+            stacking_mode_ui,
+            stacking_freq_section,
+            # mo.md("### Extra"),
+            # view_each_transition_ui,
+        ],
+        gap=1,
+    )
     return
 
 
@@ -406,7 +346,7 @@ def _(
             float(f) for f in dataset_freq_selector_ui.value
         ]
         selected_stacking_unit = slim_freq_unit_ui.value
-    elif stacking_mode_ui.value == "Custom list (comma-separated)":
+    elif stacking_mode_ui.value == "Custom list":
         # Option C: Parse raw text box input (handles commas, spaces, or newlines)
         raw_text = custom_freqs_text_ui.value
         # Replace newlines with commas, split on comma, and clean extra whitespace
@@ -420,66 +360,18 @@ def _(
     return selected_stacking_freqs, stacking_freqs_unit
 
 
-@app.cell
-def _(selected_stacking_freqs):
-    print(selected_stacking_freqs)
-    return
-
-
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ---
-    """)
-    return
-
-
-@app.cell
 def _(
     baseline_window_ui,
     channel_width_ui,
-    molecule_ui,
     ref_vel_ui,
     resample_method_ui,
-    slim_freq_unit_ui,
-    spectra_flux_unit_ui,
-    spectra_freq_unit_ui,
     stack_weighting_ui,
     stacking_window_ui,
-    u,
     use_custom_velocity_axes_ui,
     view_each_transition_ui,
 ):
-    # User input (marimo notebook version)
-
-    # Set SLIM data
-    molecule = molecule_ui.value
-    slim_freq_unit = getattr(u, slim_freq_unit_ui.value)
-
-    # Map dropdown selection to astropy units
-    spectra_freq_unit = getattr(u, spectra_freq_unit_ui.value)
-    spectra_flux_unit = getattr(u, spectra_flux_unit_ui.value)
-
-    # Stacking freq list
-    # Here the user can select which transitions to use for the stacking.
-    # If set to 'all', the program uses every transition found within the
-    # spectra files
-    # Special TEST
-    # If set to None, or empty, the program outputs a list of found
-    # frequencies to select 
-    # stacking_freqs = [
-    #     # 109252.22,
-    #     152656.979,
-    #     152680.282,
-    #     152855.454,
-    #     152888.128,
-    #     283586.8296,
-    #     283593.1805,
-    #     283777.603,
-    #     283785.4132,
-    # ]
-    # stacking_freqs = None
-    # stacking_freqs_unit = u.MHz
+    # Read parameters (marimo notebook version)
 
     # Stacking parameters
 
@@ -518,60 +410,12 @@ def _(
     view_each_transition = view_each_transition_ui.value
     return (
         custom_velocity_axes_params,
-        molecule,
         resample_method,
-        slim_freq_unit,
-        spectra_flux_unit,
-        spectra_freq_unit,
         stacking_weighting,
         stacking_window_params,
         use_custom_velocity_axes,
         view_each_transition,
     )
-
-
-@app.cell
-def _():
-    # # old selector
-
-    # # Show Stack freqs list if list is set to None
-
-    # if stacking_freqs is None:
-    #     freq_selector = mo.ui.multiselect(
-    #         options=freqs,
-    #         value=freqs,
-    #         label="Frequencies",
-    #     )
-
-    #     stacking_output = mo.vstack(
-    #         [
-    #             mo.md(
-    #                 """
-    #                 ### Select Stacking Frequencies
-    #                 Choose which frequencies you want to include in the stack
-    #                 analysis below:
-    #                 """
-    #             ),
-    #             freq_selector,
-    #         ]
-    #     )
-    # else:
-    #     stacking_output = None
-
-    # stacking_output
-    return
-
-
-@app.cell
-def _():
-    # # from old selector
-
-    # # Read Stack freqs list if list is set to None
-    # if stacking_freqs is None:
-    #     selected_stacking_freqs = freq_selector.value
-    # else:
-    #     selected_stacking_freqs = stacking_freqs
-    return
 
 
 @app.cell(hide_code=True)
@@ -649,7 +493,7 @@ def _(lines_fig, main_fig, mo, peak_shift, v_center):
     # Show results
     main_view = mo.vstack(
         [
-            mo.md("## Impulse Response results"),
+            mo.md("# Impulse Response results"),
             mo.hstack(
                 [
                     # mo.stat(
@@ -840,18 +684,16 @@ def _(Optional, Spectrum, dataclass, field, np, u):
 
 
 @app.cell
-def _(molecule, np, slim_freq_unit, slim_table, spectra):
-    # Data preparation
+def _():
+    # Data preparation #1 moved to top of the notebook before UI
 
     # SLIM and Spectra preparation
 
     # Moved to cell on top for notebook
     # slim_table = Table.read(slim_filename, format='csv', delimiter=",")  
-
-    slim_table["Frequency"].unit = slim_freq_unit
-
+    # slim_table["Frequency"].unit = slim_freq_unit
     # Molecule filter
-    molecule_filter = slim_table["Formula"] == molecule
+    # molecule_filter = slim_table["Formula"] == molecule
 
     # # Frequency filter
     # # Moved to cell on top for notebook
@@ -868,15 +710,15 @@ def _(molecule, np, slim_freq_unit, slim_table, spectra):
     #         )
     #     )
 
-    freq_range_filter = np.zeros(len(slim_table), dtype=bool)
-    for _spectrum in spectra:
-        spec_freq = _spectrum.spectral_axis
-        freq_range_filter |= (slim_table["Frequency"] > spec_freq.min()) & (
-            slim_table["Frequency"] < spec_freq.max()
-        )
-    slim_table_mol_freq = slim_table[molecule_filter & freq_range_filter]
-    freqs = sorted(np.unique(slim_table_mol_freq["Frequency"]))
-    return freqs, slim_table_mol_freq
+    # freq_range_filter = np.zeros(len(slim_table), dtype=bool)
+    # for _spectrum in spectra:
+    #     spec_freq = _spectrum.spectral_axis
+    #     freq_range_filter |= (slim_table["Frequency"] > spec_freq.min()) & (
+    #         slim_table["Frequency"] < spec_freq.max()
+    #     )
+    # slim_table_mol_freq = slim_table[molecule_filter & freq_range_filter]
+    # freqs = sorted(np.unique(slim_table_mol_freq["Frequency"]))
+    return
 
 
 @app.cell
@@ -1100,7 +942,7 @@ def _(
             current_line = _line
 
         # Resample line
-        if resample_method == "linear":
+        if resample_method == "finear":
             line_resampled = current_line.to_vel().resample(
                 linear_resampler, resample_velocity
             )
