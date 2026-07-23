@@ -1,0 +1,21 @@
+/* Vertical ruler for Marimo cells */
+
+:root {
+    --ruler-position: 88ch;
+}
+
+.cm-editor {
+    position: relative;
+}
+
+.cm-editor::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--ruler-position);
+    width: 1px;
+    background-color: rgba(22, 107, 86, 0.3);
+    pointer-events: none;
+    z-index: 10;
+}
