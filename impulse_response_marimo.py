@@ -1,3 +1,14 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "astropy==8.0.1",
+#     "marimo>=0.23.14",
+#     "matplotlib==3.11.1",
+#     "numpy==2.5.1",
+#     "specutils==2.4.0",
+# ]
+# ///
+
 import marimo
 
 __generated_with = "0.23.14"
