@@ -71,7 +71,6 @@ def _(mo):
         mo.md("---"),
         mo.md("### 🏷️ Target molecule & Input units"),
         mo.hstack([
-            molecule_ui,
             slim_freq_unit_ui,
         ], justify="start", gap=2),
         mo.hstack([
@@ -82,7 +81,6 @@ def _(mo):
     return (
         file_picker_SLIM,
         file_picker_spectra,
-        molecule_ui,
         slim_freq_unit_ui,
         spectra_flux_unit_ui,
         spectra_freq_unit_ui,
@@ -161,22 +159,34 @@ def _(
 
 
 @app.cell(hide_code=True)
+def _(dataset_mols_selector_ui, mo):
+    # Build the conditional UI section for molecule selection
+
+    mo.vstack(
+        [
+            mo.md("### Molecule"),
+            mo.hstack(
+                [
+                    dataset_mols_selector_ui,
+                ],
+                justify="start",
+                gap=3,
+            ),
+        ],
+        gap=1,
+    )
+    return
+
+
+@app.cell(hide_code=True)
 def _(
-    baseline_window_ui,
     channel_width_ui,
-    custom_freqs_text_ui,
-    dataset_freq_selector_ui,
     mo,
     ref_vel_ui,
     resample_method_ui,
-    stack_weighting_ui,
-    stacking_freqs_unit_ui,
-    stacking_mode_ui,
-    stacking_window_ui,
     use_custom_velocity_axes_ui,
 ):
-    # Build the conditional UI section for custom velocity axes and
-    # transitions selection
+    # Build the conditional UI section for custom velocity axes
 
     if use_custom_velocity_axes_ui.value:
         custom_axes_controls = mo.hstack(
@@ -188,6 +198,37 @@ def _(
         )
     else:
         velocity_section = use_custom_velocity_axes_ui
+
+    # Display controls in two balanced columns
+    mo.vstack(
+        [
+            mo.md("### Resampling"),
+            mo.hstack(
+                [
+                    resample_method_ui,
+                    velocity_section,
+                ],
+                justify="start",
+                gap=3,
+            ),
+        ],
+        gap=1,
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(
+    baseline_window_ui,
+    custom_freqs_text_ui,
+    dataset_freq_selector_ui,
+    mo,
+    stack_weighting_ui,
+    stacking_freqs_unit_ui,
+    stacking_mode_ui,
+    stacking_window_ui,
+):
+    # Build the conditional UI section for transitions selection
 
     # Dynamic section for transitions selection
     if stacking_mode_ui.value == "Select from dataset":
@@ -203,15 +244,6 @@ def _(
     # Display controls in two balanced columns
     mo.vstack(
         [
-            mo.md("### Resampling"),
-            mo.hstack(
-                [
-                    resample_method_ui,
-                    velocity_section,
-                ],
-                justify="start",
-                gap=3,
-            ),
             mo.md("### Stacking"),
             mo.hstack(
                 [
@@ -445,31 +477,58 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(molecule_ui, np, slim_freq_unit_ui, slim_table, spectra, u):
-    # Read SLIM and spec data to get the frequencies found list before setting
-    # the rest of the UI
+def _(np, slim_freq_unit_ui, slim_table, spectra, u):
+    # Read SLIM and spec data to get the frequencies inside both input files
+    # before setting the rest of the UI.
 
     # Set SLIM data
     slim_freq_unit = getattr(u, slim_freq_unit_ui.value)
     slim_table["Frequency"].unit = slim_freq_unit
 
-    molecule = molecule_ui.value
-    molecule_filter = slim_table["Formula"] == molecule
-
+    # Get every line inside SLIM and spectra
     freq_range_filter = np.zeros(len(slim_table), dtype=bool)
     for _spectrum in spectra:
         spec_freq = _spectrum.spectral_axis
         freq_range_filter |= (slim_table["Frequency"] > spec_freq.min()) & (
             slim_table["Frequency"] < spec_freq.max()
         )
-    slim_table_mol_freq = slim_table[molecule_filter & freq_range_filter]
+    slim_table_freq = slim_table[freq_range_filter]
+
+    # Show to which molecules belong the transitions contained in the SLIM and
+    # spectra files
+    mols = sorted(np.unique(slim_table_freq["Formula"]))
+    return freq_range_filter, mols
+
+
+@app.cell(hide_code=True)
+def _(dataset_mols_selector_ui, freq_range_filter, np, slim_table):
+    # Read the user selected molecule to get the frequencies of said molecule
+    # and show it to the user to select transitions
+
+    # molecule = molecule_ui.value
+    molecule = dataset_mols_selector_ui.value
+    molecule_filter = slim_table["Formula"] == molecule
+    slim_table_mol_freq = slim_table[freq_range_filter & molecule_filter]
     freqs = sorted(np.unique(slim_table_mol_freq["Frequency"]))
     return freqs, slim_table_mol_freq
 
 
 @app.cell(hide_code=True)
+def _(mo, mols):
+    # Post upload processing #1: Show molecules found in all input 
+
+    mol_options = [str(m) for m in mols]
+    dataset_mols_selector_ui = mo.ui.dropdown(
+        options=mol_options,
+        value=mol_options[0],
+        label="Select Transitions from Dataset",
+    )
+    return (dataset_mols_selector_ui,)
+
+
+@app.cell(hide_code=True)
 def _(freqs, mo):
-    # Post-upload processing controls for UI
+    # Post-upload processing #2 of controls for secondary UI
 
     # --- Stacking & Resampling ---
     stack_weighting_ui = mo.ui.dropdown(
