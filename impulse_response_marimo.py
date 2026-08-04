@@ -23,7 +23,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     # File pickers
 
@@ -89,7 +89,7 @@ def _(mo):
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(BytesIO, Table, file_picker_SLIM, mo):
     # The SLIM Gate: Stop immediately if the tuple is empty
 
@@ -112,7 +112,7 @@ def _(BytesIO, Table, file_picker_SLIM, mo):
     return (slim_table,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     BytesIO,
     Spectrum,
@@ -123,7 +123,7 @@ def _(
     spectra_freq_unit_ui,
     u,
 ):
-    # The SLIM Gate: Stop immediately if the tuple is empty
+    # The Spectra Gate: Stop immediately if the tuple is empty
 
     mo.stop(
         len(file_picker_spectra.value) == 0,
@@ -160,117 +160,7 @@ def _(
     return spectra, spectra_flux_unit
 
 
-@app.cell
-def _(molecule_ui, np, slim_freq_unit_ui, slim_table, spectra, u):
-    # Read SLIM and spec data to get the frequencies found list before setting the rest of the UI
-
-    # Set SLIM data
-    slim_freq_unit = getattr(u, slim_freq_unit_ui.value)
-    slim_table["Frequency"].unit = slim_freq_unit
-
-    molecule = molecule_ui.value
-    molecule_filter = slim_table["Formula"] == molecule
-
-    freq_range_filter = np.zeros(len(slim_table), dtype=bool)
-    for _spectrum in spectra:
-        spec_freq = _spectrum.spectral_axis
-        freq_range_filter |= (slim_table["Frequency"] > spec_freq.min()) & (
-            slim_table["Frequency"] < spec_freq.max()
-        )
-    slim_table_mol_freq = slim_table[molecule_filter & freq_range_filter]
-    freqs = sorted(np.unique(slim_table_mol_freq["Frequency"]))
-    return freqs, slim_table_mol_freq
-
-
-@app.cell
-def _(freqs, mo):
-    # Post-upload processing controls
-
-    # --- Stacking & Resampling ---
-    stack_weighting_ui = mo.ui.dropdown(
-        options=["equal", "sigma"], value="sigma", label="Stacking weight"
-    )
-    resample_method_ui = mo.ui.dropdown(
-        options=["linear", "flux conserving"],
-        value="flux conserving",
-        label="Resample method"
-    )
-
-    use_custom_velocity_axes_ui = mo.ui.switch(
-        label="Use custom velocity axes"
-    )
-    ref_vel_ui = mo.ui.number(value=0, label="Ref Vel (km/s)")
-    channel_width_ui = mo.ui.number(value=1, label="Channel Width (km/s)")
-
-
-
-    # --- Windows ---
-
-    # Option A: Dual-thumb range slider
-    stacking_window_ui = mo.ui.range_slider(
-        start=-100,
-        stop=100,
-        value=[-60, 60],
-        step=1,
-        show_value=True,
-        label="Stacking Window Vel (km/s)",
-    )
-
-    # Option B: Number inputs arranged horizontally
-    # (Best for exact numerical entry)
-    baseline_window_ui = mo.md(
-        """
-        Baseline Window Vel (km/s): 
-        {min_vel} to {max_vel}
-        """
-    ).batch(
-        min_vel=mo.ui.number(value=-1, label="Min"),
-        max_vel=mo.ui.number(value=1, label="Max"),
-    )
-
-
-
-    # --- Transitions / Frequencies Selection ---
-    stacking_mode_ui = mo.ui.dropdown(
-        options=["All", "Select from dataset", "Custom list"],
-        value="All",
-        label="Transitions to Stack"
-    )
-    freq_options = [str(f) for f in freqs]
-    dataset_freq_selector_ui = mo.ui.multiselect(
-        options=freq_options,
-        value=freq_options,
-        label="Select Transitions from Dataset",
-    )
-    custom_freqs_text_ui = mo.ui.text_area(
-        value="152656.979, 152680.282, 152855.454",
-        placeholder="152656.979, 152680.282"
-    )
-    stacking_freqs_unit_ui = mo.ui.dropdown(
-        options=["MHz", "GHz", "kHz", "Hz"],
-        value="MHz",
-        label="Enter Frequencies separated by commas or newlines. Unit: "
-    )
-
-    # Logging
-    view_each_transition_ui = mo.ui.checkbox(value=True, label="View each transition")
-    return (
-        baseline_window_ui,
-        channel_width_ui,
-        custom_freqs_text_ui,
-        dataset_freq_selector_ui,
-        ref_vel_ui,
-        resample_method_ui,
-        stack_weighting_ui,
-        stacking_freqs_unit_ui,
-        stacking_mode_ui,
-        stacking_window_ui,
-        use_custom_velocity_axes_ui,
-        view_each_transition_ui,
-    )
-
-
-@app.cell
+@app.cell(hide_code=True)
 def _(
     baseline_window_ui,
     channel_width_ui,
@@ -285,7 +175,9 @@ def _(
     stacking_window_ui,
     use_custom_velocity_axes_ui,
 ):
-    # Build the conditional UI section for custom velocity axes
+    # Build the conditional UI section for custom velocity axes and
+    # transitions selection
+
     if use_custom_velocity_axes_ui.value:
         custom_axes_controls = mo.hstack(
             [ref_vel_ui, channel_width_ui],
@@ -301,7 +193,10 @@ def _(
     if stacking_mode_ui.value == "Select from dataset":
         stacking_freq_section = dataset_freq_selector_ui
     elif stacking_mode_ui.value == "Custom list":
-        stacking_freq_section = mo.vstack([stacking_freqs_unit_ui, custom_freqs_text_ui], gap=1)
+        stacking_freq_section = mo.vstack(
+            [stacking_freqs_unit_ui, custom_freqs_text_ui],
+            gap=1
+        )
     else:
         stacking_freq_section = mo.md("_Using all detected transitions from dataset._")
 
@@ -337,171 +232,10 @@ def _(
     return
 
 
-@app.cell
-def _(
-    custom_freqs_text_ui,
-    dataset_freq_selector_ui,
-    freqs,
-    slim_freq_unit_ui,
-    stacking_freqs_unit_ui,
-    stacking_mode_ui,
-    u,
-):
-    if stacking_mode_ui.value == "All":
-        # Option A: Use every transition available from the input table/spectrum
-        selected_stacking_freqs = freqs
-        selected_stacking_unit = slim_freq_unit_ui.value
-    elif stacking_mode_ui.value == "Select from dataset":
-        # Option B: Convert chosen multiselect string items back to float numbers
-        selected_stacking_freqs = [
-            float(f) for f in dataset_freq_selector_ui.value
-        ]
-        selected_stacking_unit = slim_freq_unit_ui.value
-    elif stacking_mode_ui.value == "Custom list":
-        # Option C: Parse raw text box input (handles commas, spaces, or newlines)
-        raw_text = custom_freqs_text_ui.value
-        # Replace newlines with commas, split on comma, and clean extra whitespace
-        cleaned_items = raw_text.replace("\n", ",").split(",")
-        selected_stacking_freqs = [
-            float(item.strip()) for item in cleaned_items if item.strip()
-        ]
-        selected_stacking_unit = stacking_freqs_unit_ui.value
-    # Convert the unit string to astropy unit object
-    stacking_freqs_unit = getattr(u, selected_stacking_unit)
-    return selected_stacking_freqs, stacking_freqs_unit
-
-
-@app.cell(hide_code=True)
-def _(
-    baseline_window_ui,
-    channel_width_ui,
-    ref_vel_ui,
-    resample_method_ui,
-    stack_weighting_ui,
-    stacking_window_ui,
-    use_custom_velocity_axes_ui,
-    view_each_transition_ui,
-):
-    # Read parameters (marimo notebook version)
-
-    # Stacking parameters
-
-    stacking_weighting = stack_weighting_ui.value
-
-    # Extract range_slider values
-    stacking_window_params = {
-        "min_vel": stacking_window_ui.value[0],
-        "max_vel": stacking_window_ui.value[1],
-    }
-
-    # Extract dictionary values
-    baseline_window_params = {
-        "min_vel": baseline_window_ui.value["min_vel"],
-        "max_vel": baseline_window_ui.value["max_vel"],
-    }
-
-    # Resampling parameters
-
-    # If False, the program uses the velocity array for the first line and
-    # custom_velocity_axes_params are ignored:
-    use_custom_velocity_axes = use_custom_velocity_axes_ui.value
-    # If use_custom_velocity_axes is True:
-    # Extract custom velocity parameters safely
-    if use_custom_velocity_axes_ui.value:
-        custom_velocity_axes_params = {
-            "ref_vel": ref_vel_ui.value,
-            "channel_width": channel_width_ui.value,
-        }
-    else:
-        custom_velocity_axes_params = None
-
-    resample_method = resample_method_ui.value
-
-    # Logging
-    view_each_transition = view_each_transition_ui.value
-    return (
-        custom_velocity_axes_params,
-        resample_method,
-        stacking_weighting,
-        stacking_window_params,
-        use_custom_velocity_axes,
-        view_each_transition,
-    )
-
-
-@app.cell(hide_code=True)
-def _():
-    # # User input (script version)
-
-    # # Set SLIM data
-    # molecule = 'PO,v=0'  # Formula string from MADCUBA
-    # slim_freq_unit = u.MHz
-    # # slim_filename = 'cross-corr-dats/slim_table_region_10.csv'
-    # # slim_filename = 'cross-corr-dats/SLIM-table-SO.csv'
-
-    # # Set spectra data (can be multiple files)
-    # # spectra_filenames = [
-    # #     'cross-corr-dats/01_IRAS_16293-2422_spw27.dat',
-    # #     'cross-corr-dats/01_IRAS_16293-2422_spw29.dat',
-    # #     # 'cross-corr-dats/POband7-obsfreq.dat',
-    # # ]
-    # spectra_freq_unit = u.GHz
-    # spectra_flux_unit = u.Jy
-
-    # # Stacking freq list
-    # # Here the user can select which transitions to use for the stacking.
-    # # If set to 'all', the program uses every transition found within the spectra
-    # # files
-    # # If set to None, or empty, the program outputs a list of found frequencies to select
-    # stacking_freqs = [
-    #     # 109252.22,
-    #     152656.979,
-    #     152680.282,
-    #     152855.454,
-    #     152888.128,
-    #     283586.8296,
-    #     283593.1805,
-    #     283777.603,
-    #     283785.4132,
-    # ]
-    # stacking_freqs_unit = u.MHz
-
-
-    # # Stacking parameters
-
-    # stacking_weighting = 'equal'    # 'equal' or 'sigma'
-
-    # stacking_window_params = {
-    #     'min_vel': -60,    # min velocity (km/s) of the window around each line
-    #     'max_vel': 60,    # max velocity (km/s) of the window around each line
-    # }
-
-    # baseline_window_params = {
-    #     'min_vel': -1,    # min velocity (km/s) of the window around each line
-    #     'max_vel': 1,    # max velocity (km/s) of the window around each line
-    # }
-
-    # # Resampling parameters
-
-    # # If False, the program uses the velocity array for the first line and
-    # # custom_velocity_axes_params are ignored:
-    # use_custom_velocity_axes = False
-    # # If use_custom_velocity_axes is True:
-    # custom_velocity_axes_params = {
-    #     'ref_vel': 0,    # reference velocity to resample velocity axis
-    #     'channel_width': 1    # channel width in velocity (km/s)
-    # }
-
-    # resample_method = 'linear'  # 'linear' (default) or 'flux conserving' (CLASS)
-
-    # # Logging
-    # view_each_transition = True
-    return
-
-
 @app.cell(hide_code=True)
 def _(lines_fig, main_fig, mo, peak_shift, v_center):
     # Show results
+
     main_view = mo.vstack(
         [
             mo.md("# Impulse Response results"),
@@ -559,7 +293,15 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Imports and aux functions
+    """)
+    return
+
+
+@app.cell(hide_code=True)
 def _():
     # imports
 
@@ -594,7 +336,7 @@ def _():
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(Optional, Spectrum, dataclass, field, np, u):
     # Aux classes and functions
 
@@ -694,9 +436,137 @@ def _(Optional, Spectrum, dataclass, field, np, u):
     return LineSpectrum, gaussian_profile
 
 
-@app.cell
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## UI preparation
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(molecule_ui, np, slim_freq_unit_ui, slim_table, spectra, u):
+    # Read SLIM and spec data to get the frequencies found list before setting
+    # the rest of the UI
+
+    # Set SLIM data
+    slim_freq_unit = getattr(u, slim_freq_unit_ui.value)
+    slim_table["Frequency"].unit = slim_freq_unit
+
+    molecule = molecule_ui.value
+    molecule_filter = slim_table["Formula"] == molecule
+
+    freq_range_filter = np.zeros(len(slim_table), dtype=bool)
+    for _spectrum in spectra:
+        spec_freq = _spectrum.spectral_axis
+        freq_range_filter |= (slim_table["Frequency"] > spec_freq.min()) & (
+            slim_table["Frequency"] < spec_freq.max()
+        )
+    slim_table_mol_freq = slim_table[molecule_filter & freq_range_filter]
+    freqs = sorted(np.unique(slim_table_mol_freq["Frequency"]))
+    return freqs, slim_table_mol_freq
+
+
+@app.cell(hide_code=True)
+def _(freqs, mo):
+    # Post-upload processing controls for UI
+
+    # --- Stacking & Resampling ---
+    stack_weighting_ui = mo.ui.dropdown(
+        options=["equal", "sigma"], value="sigma", label="Stacking weight"
+    )
+    resample_method_ui = mo.ui.dropdown(
+        options=["linear", "flux conserving"],
+        value="flux conserving",
+        label="Resample method"
+    )
+
+    use_custom_velocity_axes_ui = mo.ui.switch(
+        label="Use custom velocity axes"
+    )
+    ref_vel_ui = mo.ui.number(value=0, label="Ref Vel (km/s)")
+    channel_width_ui = mo.ui.number(value=1, label="Channel Width (km/s)")
+
+
+
+    # --- Windows ---
+
+    # Option A: Dual-thumb range slider
+    stacking_window_ui = mo.ui.range_slider(
+        start=-100,
+        stop=100,
+        value=[-60, 60],
+        step=1,
+        show_value=True,
+        label="Stacking Window Vel (km/s)",
+    )
+
+    # Option B: Number inputs arranged horizontally
+    # (Best for exact numerical entry)
+    baseline_window_ui = mo.md(
+        """
+        Baseline Window Vel (km/s): 
+        {min_vel} to {max_vel}
+        """
+    ).batch(
+        min_vel=mo.ui.number(value=-1, label="Min"),
+        max_vel=mo.ui.number(value=1, label="Max"),
+    )
+
+
+
+    # --- Transitions / Frequencies Selection ---
+    stacking_mode_ui = mo.ui.dropdown(
+        options=["All", "Select from dataset", "Custom list"],
+        value="All",
+        label="Transitions to Stack"
+    )
+    freq_options = [str(f) for f in freqs]
+    dataset_freq_selector_ui = mo.ui.multiselect(
+        options=freq_options,
+        value=freq_options,
+        label="Select Transitions from Dataset",
+    )
+    custom_freqs_text_ui = mo.ui.text_area(
+        value="152656.979, 152680.282, 152855.454",
+        placeholder="152656.979, 152680.282"
+    )
+    stacking_freqs_unit_ui = mo.ui.dropdown(
+        options=["MHz", "GHz", "kHz", "Hz"],
+        value="MHz",
+        label="Enter Frequencies separated by commas or newlines. Unit: "
+    )
+
+    # Logging
+    view_each_transition_ui = mo.ui.checkbox(value=True, label="View each transition")
+    return (
+        baseline_window_ui,
+        channel_width_ui,
+        custom_freqs_text_ui,
+        dataset_freq_selector_ui,
+        ref_vel_ui,
+        resample_method_ui,
+        stack_weighting_ui,
+        stacking_freqs_unit_ui,
+        stacking_mode_ui,
+        stacking_window_ui,
+        use_custom_velocity_axes_ui,
+        view_each_transition_ui,
+    )
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Main program code
+    """)
+    return
+
+
+@app.cell(hide_code=True)
 def _():
-    # Data preparation #1 moved to top of the notebook before UI
+    # (COMMENTED CELL) Data preparation #1 (moved to top of the notebook
+    # before setting UI)
 
     # SLIM and Spectra preparation
 
@@ -732,15 +602,172 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
+def _():
+    # # (COMMENTED CELL) User input (script version)
+
+    # # Set SLIM data
+    # molecule = 'PO,v=0'  # Formula string from MADCUBA
+    # slim_freq_unit = u.MHz
+    # # slim_filename = 'cross-corr-dats/slim_table_region_10.csv'
+    # # slim_filename = 'cross-corr-dats/SLIM-table-SO.csv'
+
+    # # Set spectra data (can be multiple files)
+    # # spectra_filenames = [
+    # #     'cross-corr-dats/01_IRAS_16293-2422_spw27.dat',
+    # #     'cross-corr-dats/01_IRAS_16293-2422_spw29.dat',
+    # #     # 'cross-corr-dats/POband7-obsfreq.dat',
+    # # ]
+    # spectra_freq_unit = u.GHz
+    # spectra_flux_unit = u.Jy
+
+    # # Stacking freq list
+    # # Here the user can select which transitions to use for the stacking.
+    # # If set to 'all', the program uses every transition found within the spectra
+    # # files
+    # # If set to None, or empty, the program outputs a list of found frequencies to select
+    # stacking_freqs = [
+    #     # 109252.22,
+    #     152656.979,
+    #     152680.282,
+    #     152855.454,
+    #     152888.128,
+    #     283586.8296,
+    #     283593.1805,
+    #     283777.603,
+    #     283785.4132,
+    # ]
+    # stacking_freqs_unit = u.MHz
+
+
+    # # Stacking parameters
+
+    # stacking_weighting = 'equal'    # 'equal' or 'sigma'
+
+    # stacking_window_params = {
+    #     'min_vel': -60,    # min velocity (km/s) of the window around each line
+    #     'max_vel': 60,    # max velocity (km/s) of the window around each line
+    # }
+
+    # baseline_window_params = {
+    #     'min_vel': -1,    # min velocity (km/s) of the window around each line
+    #     'max_vel': 1,    # max velocity (km/s) of the window around each line
+    # }
+
+    # # Resampling parameters
+
+    # # If False, the program uses the velocity array for the first line and
+    # # custom_velocity_axes_params are ignored:
+    # use_custom_velocity_axes = False
+    # # If use_custom_velocity_axes is True:
+    # custom_velocity_axes_params = {
+    #     'ref_vel': 0,    # reference velocity to resample velocity axis
+    #     'channel_width': 1    # channel width in velocity (km/s)
+    # }
+
+    # resample_method = 'linear'  # 'linear' (default) or 'flux conserving' (CLASS)
+
+    # # Logging
+    # view_each_transition = True
+    return
+
+
+@app.cell(hide_code=True)
 def _(
+    baseline_window_ui,
+    channel_width_ui,
+    ref_vel_ui,
+    resample_method_ui,
+    stack_weighting_ui,
+    stacking_window_ui,
+    use_custom_velocity_axes_ui,
+    view_each_transition_ui,
+):
+    # Read parameters (marimo notebook version)
+
+    # Stacking parameters
+
+    stacking_weighting = stack_weighting_ui.value
+
+    # Extract range_slider values
+    stacking_window_params = {
+        "min_vel": stacking_window_ui.value[0],
+        "max_vel": stacking_window_ui.value[1],
+    }
+
+    # Extract dictionary values
+    baseline_window_params = {
+        "min_vel": baseline_window_ui.value["min_vel"],
+        "max_vel": baseline_window_ui.value["max_vel"],
+    }
+
+    # Resampling parameters
+
+    # If False, the program uses the velocity array for the first line and
+    # custom_velocity_axes_params are ignored:
+    use_custom_velocity_axes = use_custom_velocity_axes_ui.value
+    # If use_custom_velocity_axes is True:
+    # Extract custom velocity parameters safely
+    if use_custom_velocity_axes_ui.value:
+        custom_velocity_axes_params = {
+            "ref_vel": ref_vel_ui.value,
+            "channel_width": channel_width_ui.value,
+        }
+    else:
+        custom_velocity_axes_params = None
+
+    resample_method = resample_method_ui.value
+
+    # Logging
+    view_each_transition = view_each_transition_ui.value
+    return (
+        custom_velocity_axes_params,
+        resample_method,
+        stacking_weighting,
+        stacking_window_params,
+        use_custom_velocity_axes,
+        view_each_transition,
+    )
+
+
+@app.cell(hide_code=True)
+def _(
+    custom_freqs_text_ui,
+    dataset_freq_selector_ui,
+    freqs,
     np,
-    selected_stacking_freqs,
+    slim_freq_unit_ui,
     slim_table_mol_freq,
-    stacking_freqs_unit,
+    stacking_freqs_unit_ui,
+    stacking_mode_ui,
     u,
 ):
+    # Filter line data selected for stacking
+
+    if stacking_mode_ui.value == "All":
+        # Use every transition available from the input table/spectrum
+        selected_stacking_freqs = freqs
+        selected_stacking_unit = slim_freq_unit_ui.value
+    elif stacking_mode_ui.value == "Select from dataset":
+        # Convert chosen multiselect string items back to float numbers
+        selected_stacking_freqs = [
+            float(f) for f in dataset_freq_selector_ui.value
+        ]
+        selected_stacking_unit = slim_freq_unit_ui.value
+    elif stacking_mode_ui.value == "Custom list":
+        # Parse raw text box input (handles commas, spaces, or newlines)
+        raw_text = custom_freqs_text_ui.value
+        # Replace newlines with commas, split on comma, and clean whitespace
+        cleaned_items = raw_text.replace("\n", ",").split(",")
+        selected_stacking_freqs = [
+            float(item.strip()) for item in cleaned_items if item.strip()
+        ]
+        selected_stacking_unit = stacking_freqs_unit_ui.value
+    # Convert the unit string to astropy unit object
+    stacking_freqs_unit = getattr(u, selected_stacking_unit)
+
     # Selected transitions filter
+
     selected_freqs = selected_stacking_freqs * stacking_freqs_unit
     table_freqs = slim_table_mol_freq["Frequency"].to(u.GHz).value
     selected_freqs_filter = np.zeros(len(table_freqs), dtype=bool)
@@ -755,7 +782,7 @@ def _(
     return (slim_table_stacking,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     LineSpectrum,
     SpectralCoord,
@@ -877,7 +904,7 @@ def _(
     return lines, model
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     custom_velocity_axes_params,
     lines,
@@ -907,9 +934,8 @@ def _(
     else:
         # Get common velocity as the velocity axes of the first line
         common_velocity_value = lines[0].spectral_axis.to(u.km / u.s).value
-        slice_mask = (common_velocity_value >= v_min) & (
-            common_velocity_value <= v_max
-        )
+        slice_mask = ((common_velocity_value >= v_min) & 
+                      (common_velocity_value <= v_max))
         common_velocity = common_velocity_value[slice_mask]
         # If the axis was in frequency, we need to swap its order so that the
         # velocity array is incremental
@@ -917,10 +943,10 @@ def _(
             common_velocity = common_velocity[::-1]
 
     resample_velocity = common_velocity * u.km / u.s
-    return resample_velocity, v_ref
+    return resample_velocity, v_max, v_min, v_ref
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     FluxConservingResampler,
     LinearInterpolatedResampler,
@@ -953,7 +979,7 @@ def _(
             current_line = _line
 
         # Resample line
-        if resample_method == "finear":
+        if resample_method == "linear":
             line_resampled = current_line.to_vel().resample(
                 linear_resampler, resample_velocity
             )
@@ -967,9 +993,18 @@ def _(
     return (lines_resampled,)
 
 
-@app.cell
-def _(LineSpectrum, Spectrum, lines_resampled, np, stacking_window_params, u):
-    # Apply a baseline each line
+@app.cell(hide_code=True)
+def _(
+    LineSpectrum,
+    Spectrum,
+    baseline_window_ui,
+    lines_resampled,
+    np,
+    u,
+    v_max,
+    v_min,
+):
+    # Apply baseline to each line
 
     lines_resampled_baselined = []
     for _line in lines_resampled:
@@ -978,11 +1013,14 @@ def _(LineSpectrum, Spectrum, lines_resampled, np, stacking_window_params, u):
 
         # Baseline each slice before stacking to allow sigma based weighting
         # Define your window boundaries for the baseline
-        base_min = stacking_window_params["min_vel"]
-        base_max = stacking_window_params["max_vel"]
+        base_min = baseline_window_ui["min_vel"].value
+        base_max = baseline_window_ui["max_vel"].value
         # Create a mask specifically matching the baseline region on the
         # common grid
-        baseline_mask = (_v_slice >= base_min) & (_v_slice <= base_max)
+        baseline_mask = (
+            ((_v_slice >= v_min) & (_v_slice <= base_min)) |
+            ((_v_slice <= v_max) & (_v_slice >= base_max))
+        )
         # Calculate the average background level inside this window
         # (Using np.mean here since we want the unweighted baseline value)
         baseline_level = np.mean(_f_slice[baseline_mask])
@@ -1008,7 +1046,7 @@ def _(LineSpectrum, Spectrum, lines_resampled, np, stacking_window_params, u):
     return (lines_resampled_baselined,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     LineSpectrum,
     Spectrum,
@@ -1059,7 +1097,7 @@ def _(
     return (line_stacked,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(line_stacked, np, u):
     # Compute cross-correlation
 
@@ -1101,18 +1139,9 @@ def _(line_stacked, np, u):
     return corr, lags, v_center
 
 
-@app.cell
-def _(
-    corr,
-    lags,
-    line_stacked,
-    np,
-    plt,
-    use_custom_velocity_axes,
-    v_center,
-    v_ref,
-):
-    # Plot main results
+@app.cell(hide_code=True)
+def _(corr, lags, line_stacked, np, plt, use_custom_velocity_axes, v_ref):
+    # Create plot for main results
 
     main_fig, main_fig_axes = plt.subplots(1, 2, figsize=(12, 5))
 
@@ -1135,7 +1164,7 @@ def _(
     main_fig_axes[0].set_ylabel("Flux / Intensity")
     main_fig_axes[0].set_title("Stacked Molecular Emission Lines")
     # main_fig_axes[0].set_xlim(-20, 20)
-    main_fig_axes[0].set_ylim(-0.005, 0.0052)
+    # main_fig_axes[0].set_ylim(-0.005, 0.0052)
 
     main_fig_axes[1].plot(lags, corr, color="black")
     main_fig_axes[1].set_xlabel("Velocity shift (km/s)")
@@ -1145,18 +1174,13 @@ def _(
 
     peak_shift = lags[np.argmax(corr)]
 
-    # print(f"Peak correlation S/N            = {peak_sn:.2f}")
-    print(f"Recovered shift               = {peak_shift:.3f} km/s")
-    print(f"Line centroid                 = {v_center:.3f} km/s")
-    # print(f"Detected velocity of first comp = {peak_vel:.3f} km/s")
-
     plt.tight_layout()
     return main_fig, peak_shift
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(lines, model, plt, u, view_each_transition):
-    # Plot individual lines
+    # Create plot for individual lines
 
     if view_each_transition:
         figsize = (6, 8)
