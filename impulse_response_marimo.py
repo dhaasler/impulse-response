@@ -960,7 +960,7 @@ def _(
                 f"Transition at {rest_freq} was not found in any selected "
                 "spectrum."
             )
-    return lines, model
+    return (lines,)
 
 
 @app.cell(hide_code=True)
@@ -1202,7 +1202,7 @@ def _(line_stacked, np, u):
 def _(corr, lags, line_stacked, np, plt, use_custom_velocity_axes, v_ref):
     # Create plot for main results
 
-    main_fig, main_fig_axes = plt.subplots(1, 2, figsize=(12, 5))
+    main_fig, main_fig_axes = plt.subplots(1, 2, figsize=(10, 4.5))
 
     main_fig_axes[0].plot(
         line_stacked.spectral_axis,
@@ -1238,14 +1238,18 @@ def _(corr, lags, line_stacked, np, plt, use_custom_velocity_axes, v_ref):
 
 
 @app.cell(hide_code=True)
-def _(lines, model, plt, u, view_each_transition):
+def _(lines, np, plt, u, v_max, v_min, view_each_transition):
     # Create plot for individual lines
 
     if view_each_transition:
-        figsize = (6, 8)
-        lines_fig, lines_axes = plt.subplots(4, 1, figsize=figsize)
 
-        for _ax, _line in zip(lines_axes, lines):
+        _n_plots = len(lines)
+    
+        figsize = (7, 1.5*_n_plots)
+        _rows = int(np.ceil(_n_plots/2))
+        lines_fig, lines_axes = plt.subplots(_rows, 2, figsize=figsize)
+
+        for _ax, _line in zip(lines_axes.flatten(), lines):
             _ax.plot(
                 _line.spectral_axis.to(u.km / u.s),
                 _line.flux,
@@ -1264,7 +1268,7 @@ def _(lines, model, plt, u, view_each_transition):
 
             _ax.set_ylabel("Intensity")
             _ax.set_xlabel("Velocity [km/s]")
-            _ax.set_title("SLIM generated model over observed spectrum")
+            # _ax.set_title("SLIM generated model over observed spectrum")
             _ax.text(
                 0.02,
                 0.98,
@@ -1274,8 +1278,17 @@ def _(lines, model, plt, u, view_each_transition):
                 transform=_ax.transAxes,
             )
 
-            _ax.set_xlim(-40, 40)
-            _ax.set_ylim(-1.5 * model.max(), 2 * model.max())
+            # Plot limits
+            _ax.set_xlim(v_min, v_max)
+            stacking_window_mask = (
+                (_line.spectral_axis.to(u.km / u.s).value > v_min) &
+                (_line.spectral_axis.to(u.km / u.s).value < v_max)
+            )
+            _y_lims = (
+                1.2 * _line.flux.value[stacking_window_mask].min(),
+                1.2 * _line.flux.value[stacking_window_mask].max()
+            )
+            _ax.set_ylim(_y_lims)
 
         plt.tight_layout()
         # plt.savefig(f"{_line.rest_value}-mult.png", dpi=300)
