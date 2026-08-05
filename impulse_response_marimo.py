@@ -527,7 +527,7 @@ def _(mo, mols):
 
 
 @app.cell(hide_code=True)
-def _(freqs, mo):
+def _(mo):
     # Post-upload processing #2 of controls for secondary UI
 
     # --- Stacking & Resampling ---
@@ -545,8 +545,18 @@ def _(freqs, mo):
     )
     ref_vel_ui = mo.ui.number(value=0, label="Ref Vel (km/s)")
     channel_width_ui = mo.ui.number(value=1, label="Channel Width (km/s)")
+    return (
+        channel_width_ui,
+        ref_vel_ui,
+        resample_method_ui,
+        stack_weighting_ui,
+        use_custom_velocity_axes_ui,
+    )
 
 
+@app.cell(hide_code=True)
+def _(freqs, mo):
+    # Post-upload processing #3 of controls for secondary UI
 
     # --- Windows ---
 
@@ -600,16 +610,11 @@ def _(freqs, mo):
     view_each_transition_ui = mo.ui.checkbox(value=True, label="View each transition")
     return (
         baseline_window_ui,
-        channel_width_ui,
         custom_freqs_text_ui,
         dataset_freq_selector_ui,
-        ref_vel_ui,
-        resample_method_ui,
-        stack_weighting_ui,
         stacking_freqs_unit_ui,
         stacking_mode_ui,
         stacking_window_ui,
-        use_custom_velocity_axes_ui,
         view_each_transition_ui,
     )
 
@@ -1244,7 +1249,7 @@ def _(lines, np, plt, u, v_max, v_min, view_each_transition):
     if view_each_transition:
 
         _n_plots = len(lines)
-    
+
         figsize = (7, 1.5*_n_plots)
         _rows = int(np.ceil(_n_plots/2))
         lines_fig, lines_axes = plt.subplots(_rows, 2, figsize=figsize)
@@ -1263,8 +1268,6 @@ def _(lines, np, plt, u, v_max, v_min, view_each_transition):
                 drawstyle="steps-mid",
                 color="red",
             )
-
-            # _ax.axvline(0.0, color="k", ls="--", alpha=0.5)
 
             _ax.set_ylabel("Intensity")
             _ax.set_xlabel("Velocity [km/s]")
