@@ -465,7 +465,10 @@ def _(Optional, Spectrum, dataclass, field, np, u):
             -((vel_array - velocity) ** 2) / (2 * sigma**2)
         )
 
-    return LineSpectrum, gaussian_profile
+    def round_up_to_even(f):
+        return np.ceil(f / 2.) * 2
+
+    return LineSpectrum, gaussian_profile, round_up_to_even
 
 
 @app.cell(hide_code=True)
@@ -1243,14 +1246,14 @@ def _(corr, lags, line_stacked, np, plt, use_custom_velocity_axes, v_ref):
 
 
 @app.cell(hide_code=True)
-def _(lines, np, plt, u, v_max, v_min, view_each_transition):
+def _(lines, np, plt, round_up_to_even, u, v_max, v_min, view_each_transition):
     # Create plot for individual lines
 
     if view_each_transition:
 
         _n_plots = len(lines)
 
-        figsize = (7, 1.5*_n_plots)
+        figsize = (7, 1.5*round_up_to_even(_n_plots))
         _rows = int(np.ceil(_n_plots/2))
         lines_fig, lines_axes = plt.subplots(_rows, 2, figsize=figsize)
 
