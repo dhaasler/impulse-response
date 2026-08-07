@@ -1220,6 +1220,8 @@ def _(
     np,
     plt,
     use_custom_velocity_axes,
+    v_max,
+    v_min,
     v_ref,
 ):
     # Create plot for main results
@@ -1241,15 +1243,14 @@ def _(
         main_fig_axes[0].axvline(v_ref, color="red", linestyle="--", alpha=0.7)
     main_fig_axes[0].grid(True, alpha=0.3)
 
-    _x_lim = main_fig_axes[0].get_xlim()
     _y_lim = main_fig_axes[0].get_ylim()
     main_fig_axes[0].plot(
-        (_x_lim[0], base_min),
+        (v_min, base_min),
         (0.75 * (_y_lim[1] - _y_lim[0]), 0.75 * (_y_lim[1] - _y_lim[0])),
         color="blue",
     )
     main_fig_axes[0].plot(
-        (base_max, _x_lim[1]),
+        (base_max, v_max),
         (0.75 * (_y_lim[1] - _y_lim[0]), 0.75 * (_y_lim[1] - _y_lim[0])),
         color="blue",
     )
