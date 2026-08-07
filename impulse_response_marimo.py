@@ -243,7 +243,8 @@ def _(
             gap=1
         )
     else:
-        stacking_freq_section = mo.md("_Using all detected transitions from dataset._")
+        stacking_freq_section = mo.md(
+            "_Using all detected transitions from dataset._")
 
     # Display controls in two balanced columns
     mo.vstack(
@@ -287,7 +288,8 @@ def _(lines_fig, main_fig, mo, peak_shift, v_center):
                         label="Line Centroid", value=f"{v_center:.3f} km/s"
                     ),
                     # mo.stat(
-                    #     label="LDetected velocity of first comp", value=f"{peak_vel:.3f:.3f} km/s"
+                    #     label="Detected velocity of first comp",
+                    #     value=f"{peak_vel:.3f:.3f} km/s",
                     # ),
                 ],
                 justify="start",
@@ -614,7 +616,10 @@ def _(freqs, mo):
     )
 
     # Logging
-    view_each_transition_ui = mo.ui.checkbox(value=True, label="View each transition")
+    view_each_transition_ui = mo.ui.checkbox(
+        value=True,
+        label="View each transition"
+    )
     return (
         baseline_window_ui,
         custom_freqs_text_ui,
@@ -631,45 +636,6 @@ def _(mo):
     mo.md(r"""
     ## Main program code
     """)
-    return
-
-
-@app.cell(hide_code=True)
-def _():
-    # (COMMENTED CELL) Data preparation #1 (moved to top of the notebook
-    # before setting UI)
-
-    # SLIM and Spectra preparation
-
-    # Moved to cell on top for notebook
-    # slim_table = Table.read(slim_filename, format='csv', delimiter=",")  
-    # slim_table["Frequency"].unit = slim_freq_unit
-    # Molecule filter
-    # molecule_filter = slim_table["Formula"] == molecule
-
-    # # Frequency filter
-    # # Moved to cell on top for notebook
-    # # Store Spectrum and Table just in case.
-    # spectra_tables = []
-    # spectra = []
-    # for filename in spectra_filenames:
-    #     spectrum_table = Table.read(filename, format="ascii")
-    #     spectra_tables.append(spectrum_table)
-    #     spectra.append(
-    #         Spectrum(
-    #             spectral_axis=spectrum_table.columns[0].data * spectra_freq_unit,
-    #             flux=spectrum_table.columns[1].data * spectra_flux_unit,
-    #         )
-    #     )
-
-    # freq_range_filter = np.zeros(len(slim_table), dtype=bool)
-    # for _spectrum in spectra:
-    #     spec_freq = _spectrum.spectral_axis
-    #     freq_range_filter |= (slim_table["Frequency"] > spec_freq.min()) & (
-    #         slim_table["Frequency"] < spec_freq.max()
-    #     )
-    # slim_table_mol_freq = slim_table[molecule_filter & freq_range_filter]
-    # freqs = sorted(np.unique(slim_table_mol_freq["Frequency"]))
     return
 
 
@@ -694,9 +660,10 @@ def _():
 
     # # Stacking freq list
     # # Here the user can select which transitions to use for the stacking.
-    # # If set to 'all', the program uses every transition found within the spectra
-    # # files
-    # # If set to None, or empty, the program outputs a list of found frequencies to select
+    # # If set to 'all', the program uses every transition found within the
+    # # spectra files
+    # # If set to None, or empty, the program outputs a list of found
+    # # frequencies to select
     # stacking_freqs = [
     #     # 109252.22,
     #     152656.979,
