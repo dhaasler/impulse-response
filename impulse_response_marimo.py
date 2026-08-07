@@ -11,8 +11,12 @@
 
 import marimo
 
-__generated_with = "0.23.14"
-app = marimo.App(app_title="Impulse Response stacking", css_file="custom.css")
+__generated_with = "0.23.16"
+app = marimo.App(
+    width="medium",
+    app_title="Impulse Response",
+    css_file="custom.css",
+)
 
 
 @app.cell(hide_code=True)
@@ -1110,7 +1114,7 @@ def _(
             meta=_line.meta.copy(),
         )
         lines_resampled_baselined.append(line_resampled_baselined)
-    return (lines_resampled_baselined,)
+    return base_max, base_min, lines_resampled_baselined
 
 
 @app.cell(hide_code=True)
@@ -1207,7 +1211,17 @@ def _(line_stacked, np, u):
 
 
 @app.cell(hide_code=True)
-def _(corr, lags, line_stacked, np, plt, use_custom_velocity_axes, v_ref):
+def _(
+    base_max,
+    base_min,
+    corr,
+    lags,
+    line_stacked,
+    np,
+    plt,
+    use_custom_velocity_axes,
+    v_ref,
+):
     # Create plot for main results
 
     main_fig, main_fig_axes = plt.subplots(1, 2, figsize=(10, 4.5))
@@ -1226,6 +1240,19 @@ def _(corr, lags, line_stacked, np, plt, use_custom_velocity_axes, v_ref):
     if use_custom_velocity_axes:
         main_fig_axes[0].axvline(v_ref, color="red", linestyle="--", alpha=0.7)
     main_fig_axes[0].grid(True, alpha=0.3)
+
+    _x_lim = main_fig_axes[0].get_xlim()
+    _y_lim = main_fig_axes[0].get_ylim()
+    main_fig_axes[0].plot(
+        (_x_lim[0], base_min),
+        (0.75 * (_y_lim[1] - _y_lim[0]), 0.75 * (_y_lim[1] - _y_lim[0])),
+        color="blue",
+    )
+    main_fig_axes[0].plot(
+        (base_max, _x_lim[1]),
+        (0.75 * (_y_lim[1] - _y_lim[0]), 0.75 * (_y_lim[1] - _y_lim[0])),
+        color="blue",
+    )
 
     main_fig_axes[0].set_xlabel("Velocity (km/s)")
     main_fig_axes[0].set_ylabel("Flux / Intensity")
