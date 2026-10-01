@@ -759,6 +759,7 @@ def _(
     # Logging
     view_each_transition = view_each_transition_ui.value
     return (
+        baseline_window_params,
         custom_velocity_axes_params,
         resample_method,
         stacking_weighting,
@@ -1136,7 +1137,7 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(line_stacked, np, u):
+def _(baseline_window_params, line_stacked, np, u):
     # Compute cross-correlation
 
     # Check same number of channels in all arrays:
@@ -1172,9 +1173,16 @@ def _(line_stacked, np, u):
     corr = np.fft.fftshift(corr)
 
     # Normalize correlation to S/N units
-    corr /= np.std(corr)
+    # Use baseline window regridded to new lag axis with center value (zero)
+    # at found line centroid
+    corr_std_window_min = baseline_window_params["min_vel"] - v_center
+    corr_std_window_max = baseline_window_params["max_vel"] - v_center
+    lags_mask = (lags >= corr_std_window_min) & (lags <= corr_std_window_max)
+    corr_noise = np.std(corr[~lags_mask])
+    # corr_noise = np.std(corr)  # failsafe
+    corr /= corr_noise
     # corr /= (np.std(corr)**2)
-    return corr, lags, v_center
+    return corr, corr_std_window_max, corr_std_window_min, lags, v_center
 
 
 @app.cell(hide_code=True)
@@ -1182,6 +1190,8 @@ def _(
     base_max,
     base_min,
     corr,
+    corr_std_window_max,
+    corr_std_window_min,
     lags,
     line_stacked,
     np,
@@ -1210,6 +1220,7 @@ def _(
         main_fig_axes[0].axvline(v_ref, color="red", linestyle="--", alpha=0.7)
     main_fig_axes[0].grid(True, alpha=0.3)
 
+    # Plot blue baseline window
     _y_lim = main_fig_axes[0].get_ylim()
     main_fig_axes[0].plot(
         (v_min, base_min),
@@ -1229,6 +1240,20 @@ def _(
     # main_fig_axes[0].set_ylim(-0.005, 0.0052)
 
     main_fig_axes[1].plot(lags, corr, color="black")
+
+    # Plot green std window
+    _y_lim2 = main_fig_axes[1].get_ylim()
+    main_fig_axes[1].plot(
+        (lags.min(), corr_std_window_min),
+        (0.75 * (_y_lim2[1] - _y_lim2[0]), 0.75 * (_y_lim2[1] - _y_lim2[0])),
+        color="green",
+    )
+    main_fig_axes[1].plot(
+        (corr_std_window_max, lags.max()),
+        (0.75 * (_y_lim2[1] - _y_lim2[0]), 0.75 * (_y_lim2[1] - _y_lim2[0])),
+        color="green",
+    )
+
     main_fig_axes[1].set_xlabel("Velocity shift (km/s)")
     main_fig_axes[1].set_ylabel("S/N")
     main_fig_axes[1].set_title("Impulse response")
@@ -1296,6 +1321,14 @@ def _(lines, np, plt, round_up_to_even, u, v_max, v_min, view_each_transition):
     else:
         lines_fig = None
     return (lines_fig,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Place for testing
+    """)
+    return
 
 
 if __name__ == "__main__":
