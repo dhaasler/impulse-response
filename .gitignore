@@ -25,3 +25,4 @@ test_jupyter.ipynb
 test_script.py
 test_marimo.py
 __marimo__/
+data-tests/
