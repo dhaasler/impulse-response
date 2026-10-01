@@ -1186,6 +1186,23 @@ def _(baseline_window_params, line_stacked, np, u):
 
 
 @app.cell(hide_code=True)
+def _(baseline_window_ui, line_stacked, np):
+    # Convert stacked flux axis to S/N
+
+    # Normalize stacked spectra to S/N units
+    # Use baseline window regridded to new lag axis with center value (zero)
+    # at found line centroid
+    _base_min = baseline_window_ui["min_vel"].value
+    _base_max = baseline_window_ui["max_vel"].value
+    stacked_mask = ((line_stacked.spectral_axis.value.copy() >= _base_min) &
+                 (line_stacked.spectral_axis.value.copy() <= _base_max))
+    stacked_noise = np.std(line_stacked.observed.flux.copy()[~stacked_mask])
+    line_stacked_observed_snr = line_stacked.observed.flux.copy() / stacked_noise
+    line_stacked_model_snr = line_stacked.model.flux.copy() / stacked_noise
+    return (stacked_noise,)
+
+
+@app.cell(hide_code=True)
 def _(
     base_max,
     base_min,
@@ -1196,6 +1213,7 @@ def _(
     line_stacked,
     np,
     plt,
+    stacked_noise,
     use_custom_velocity_axes,
     v_max,
     v_min,
@@ -1207,7 +1225,7 @@ def _(
 
     main_fig_axes[0].plot(
         line_stacked.spectral_axis,
-        line_stacked.flux,
+        line_stacked.observed.flux,
         drawstyle="steps-mid",
         color="black",
         lw=2,
@@ -1215,6 +1233,12 @@ def _(
     main_fig_axes[0].plot(
         line_stacked.spectral_axis, line_stacked.model.flux, color="red", lw=2
     )
+
+    # Plot horizontal line with stacked noise level
+    main_fig_axes[0].axhline(stacked_noise.value, color="blue", alpha=0.3,
+                             linestyle='--')
+    main_fig_axes[0].axhline(-stacked_noise.value, color="blue", alpha=0.3,
+                             linestyle='--')
 
     if use_custom_velocity_axes:
         main_fig_axes[0].axvline(v_ref, color="red", linestyle="--", alpha=0.7)
@@ -1239,6 +1263,15 @@ def _(
     # main_fig_axes[0].set_xlim(-20, 20)
     # main_fig_axes[0].set_ylim(-0.005, 0.0052)
 
+    # Secondary SNR Y axis
+    main_fig_axes_0_snr = main_fig_axes[0].twinx()
+    # Since STD is a direct conversion, set the limits manually
+    _ymin0, _ymax0 = main_fig_axes[0].get_ylim()
+    main_fig_axes_0_snr.set_ylim(
+        _ymin0 / stacked_noise.value,
+        _ymax0 / stacked_noise.value
+    )
+
     main_fig_axes[1].plot(lags, corr, color="black")
 
     # Plot green std window
@@ -1253,6 +1286,12 @@ def _(
         (0.75 * (_y_lim2[1] - _y_lim2[0]), 0.75 * (_y_lim2[1] - _y_lim2[0])),
         color="green",
     )
+
+    # Plot horizontal line with correlation noise level
+    main_fig_axes[1].axhline(1, color="green", alpha=0.3,
+                             linestyle='--')
+    main_fig_axes[1].axhline(-1, color="green", alpha=0.3,
+                             linestyle='--')
 
     main_fig_axes[1].set_xlabel("Velocity shift (km/s)")
     main_fig_axes[1].set_ylabel("S/N")
