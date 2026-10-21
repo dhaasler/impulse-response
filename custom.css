@@ -1,21 +1,37 @@
 /* Vertical ruler for Marimo cells */
 
 :root {
-    --ruler-position: 88ch;
+    --ruler-position-79: 92.8ch;    
+    --ruler-position-75: 88.4ch;
 }
 
 .cm-editor {
     position: relative;
 }
 
+/* 75-character ruler */
 .cm-editor::before {
     content: "";
     position: absolute;
     top: 0;
     bottom: 0;
-    left: var(--ruler-position);
+    left: var(--ruler-position-79);
     width: 1px;
     background-color: rgba(22, 107, 86, 0.3);
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* 79-character ruler */
+.cm-editor::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--ruler-position-75);
+    width: 1px;
+    /* Slightly different color or opacity to distinguish them if desired */
+    background-color: rgba(180, 100, 20, 0.3); 
     pointer-events: none;
     z-index: 10;
 }
