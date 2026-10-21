@@ -93,7 +93,7 @@ def _(BytesIO, Table, file_picker_SLIM, mo):
 
     mo.stop(
         len(file_picker_SLIM.value) == 0,
-        mo.md("### 👈 Please upload a SLIM file above to begin..."),
+        mo.md("### 👆 Please upload a SLIM file above to begin..."),
     )
 
     # 2. The Processing: This code will NEVER run unless a file is uploaded
@@ -107,7 +107,7 @@ def _(BytesIO, Table, file_picker_SLIM, mo):
 
     except Exception as e:
         mo.stop(True, mo.md(f"❌ **Error parsing SLIM file:** {str(e)}"))
-    return (slim_table,)
+    return slim_raw_bytes, slim_table
 
 
 @app.cell(hide_code=True)
@@ -125,7 +125,7 @@ def _(
 
     mo.stop(
         len(file_picker_spectra.value) == 0,
-        mo.md("### 👈 Please upload one or more spectrum files above to "
+        mo.md("### 👆 Please upload one or more spectrum files above to "
               "begin..."),
     )
 
@@ -184,6 +184,7 @@ def _(
     mo,
     ref_vel_ui,
     resample_method_ui,
+    slim_raw_bytes,
     use_custom_velocity_axes_ui,
 ):
     # Secondary UI: Resample velocity axis
@@ -214,6 +215,9 @@ def _(
         ],
         gap=1,
     )
+
+    # Very ugly way to stop the cell from running by mo.stop
+    _slim_raw_bites = slim_raw_bytes
     return
 
 
@@ -313,24 +317,8 @@ def _(lines_fig, main_fig, mo, peak_shift, v_center):
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    # Hidden (seriously, don't look)
-    """)
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ## Imports and aux functions
-    """)
-    return
-
-
-@app.cell(hide_code=True)
 def _():
-    # imports
+    # Imports
 
     import marimo as mo
 
@@ -467,15 +455,9 @@ def _(Optional, Spectrum, dataclass, field, np, u):
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ## UI preparation
-    """)
-    return
-
-
-@app.cell(hide_code=True)
 def _(np, slim_freq_unit_ui, slim_table, spectra, u):
+    # Read primary UI input files
+
     # Read SLIM and spectra data to get the frequencies inside both input files
     # before setting the rest of the UI. Then return list of molecules that are
     # in the SLIM file and have transitions in the spectra files.
@@ -500,7 +482,7 @@ def _(np, slim_freq_unit_ui, slim_table, spectra, u):
 
 @app.cell(hide_code=True)
 def _(mo, mols):
-    # Post upload processing #1: Show molecules found in all of the input files 
+    # Post upload processing #1: Create molecule selection UI
 
     mol_options = [str(m) for m in mols]
     dataset_mols_selector_ui = mo.ui.dropdown(
@@ -512,22 +494,9 @@ def _(mo, mols):
 
 
 @app.cell(hide_code=True)
-def _(dataset_mols_selector_ui, freq_range_filter, np, slim_table):
-    # Read the user selected molecule to get the frequencies of said molecule
-    # and show it to the user to select transitions
-
-    molecule = dataset_mols_selector_ui.value
-    molecule_filter = slim_table["Formula"] == molecule
-    slim_table_mol_freq = slim_table[freq_range_filter & molecule_filter]
-    freqs = sorted(np.unique(slim_table_mol_freq["Frequency"]))
-    return freqs, slim_table_mol_freq
-
-
-@app.cell(hide_code=True)
 def _(mo):
-    # Post-upload processing #2 of controls for secondary UI
+    # Post-upload processing #2: Create stacking and resampling UI
 
-    # --- Stacking & Resampling ---
     stack_weighting_ui = mo.ui.dropdown(
         options=["equal", "sigma"], value="sigma", label="Stacking weight"
     )
@@ -552,10 +521,8 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(freqs, mo):
-    # Post-upload processing #3 of controls for secondary UI
-
-    # --- Windows ---
+def _(mo):
+    # Post-upload processing #3: Create baseline and stacking windows UI
 
     # Option A: Dual-thumb range slider
     stacking_window_ui = mo.ui.range_slider(
@@ -578,10 +545,26 @@ def _(freqs, mo):
         min_vel=mo.ui.number(value=-1, label="Min"),
         max_vel=mo.ui.number(value=1, label="Max"),
     )
+    return baseline_window_ui, stacking_window_ui
 
 
+@app.cell(hide_code=True)
+def _(dataset_mols_selector_ui, freq_range_filter, np, slim_table):
+    # Post-upload processing #4: Get list of frequencies for selected molecule
 
-    # --- Transitions / Frequencies Selection ---
+    # Read the user selected molecule to get the frequencies of said molecule
+    # and show it to the user to select transitions
+    molecule = dataset_mols_selector_ui.value
+    molecule_filter = slim_table["Formula"] == molecule
+    slim_table_mol_freq = slim_table[freq_range_filter & molecule_filter]
+    freqs = sorted(np.unique(slim_table_mol_freq["Frequency"]))
+    return freqs, slim_table_mol_freq
+
+
+@app.cell(hide_code=True)
+def _(freqs, mo):
+    # Post-upload processing #5: Create transitions selection UI
+
     stacking_mode_ui = mo.ui.dropdown(
         options=["All", "Select from dataset", "Custom list"],
         value="All",
@@ -609,21 +592,11 @@ def _(freqs, mo):
         label="View each transition"
     )
     return (
-        baseline_window_ui,
         custom_freqs_text_ui,
         dataset_freq_selector_ui,
         stacking_freqs_unit_ui,
         stacking_mode_ui,
-        stacking_window_ui,
     )
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ## Main program code
-    """)
-    return
 
 
 @app.cell(hide_code=True)
@@ -707,7 +680,7 @@ def _(
     stacking_window_ui,
     use_custom_velocity_axes_ui,
 ):
-    # Read parameters (marimo notebook version)
+    # Read secondary UI parameters (marimo notebook version)
 
     # Stacking parameters
 
@@ -820,7 +793,7 @@ def _(
     spectra_flux_unit,
     u,
 ):
-    # Data preparation 2
+    # Prepare selected lines data
 
     group_col = (
         "Transition"
@@ -1347,14 +1320,6 @@ def _(lines, np, plt, round_up_to_even, u, v_max, v_min, view_each_transition):
     else:
         lines_fig = None
     return (lines_fig,)
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    # Place for testing
-    """)
-    return
 
 
 if __name__ == "__main__":
