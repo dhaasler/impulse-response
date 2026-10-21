@@ -11,12 +11,8 @@
 
 import marimo
 
-__generated_with = "0.23.16"
-app = marimo.App(
-    width="medium",
-    app_title="Impulse Response",
-    css_file="custom.css",
-)
+__generated_with = "0.25.2"
+app = marimo.App(app_title="Impulse Response", css_file="custom.css")
 
 
 @app.cell(hide_code=True)
@@ -29,6 +25,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
+    # Primary UI: Input files
+
     # File pickers
 
     file_picker_SLIM = mo.ui.file(filetypes=[".csv"], kind="area")
@@ -53,9 +51,7 @@ def _(mo):
         align="start",  # Keeps titles aligned at the top
     )
 
-    # --- General & Units ---
-    molecule_ui = mo.ui.text(value="PO,v=0", label="Molecule Formula")
-
+    # Unit selectors
     freq_units_list = ["GHz", "MHz", "kHz", "Hz"]
     flux_units_list = ["Jy", "mJy", "uJy", "K", "mK"]
 
@@ -73,7 +69,7 @@ def _(mo):
     mo.vstack([
         files_layout,
         mo.md("---"),
-        mo.md("### 🏷️ Target molecule & Input units"),
+        mo.md("### 🏷️ Input units"),
         mo.hstack([
             slim_freq_unit_ui,
         ], justify="start", gap=2),
@@ -93,7 +89,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(BytesIO, Table, file_picker_SLIM, mo):
-    # The SLIM Gate: Stop immediately if the tuple is empty
+    # The SLIM Gate: Stop immediately if input is empty
 
     mo.stop(
         len(file_picker_SLIM.value) == 0,
@@ -125,7 +121,7 @@ def _(
     spectra_freq_unit_ui,
     u,
 ):
-    # The Spectra Gate: Stop immediately if the tuple is empty
+    # The Spectra Gate: Stop immediately if input is empty
 
     mo.stop(
         len(file_picker_spectra.value) == 0,
@@ -164,7 +160,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(dataset_mols_selector_ui, mo):
-    # Build the conditional UI section for molecule selection
+    # Secondary UI: Molecule selection
 
     mo.vstack(
         [
@@ -190,7 +186,7 @@ def _(
     resample_method_ui,
     use_custom_velocity_axes_ui,
 ):
-    # Build the conditional UI section for custom velocity axes
+    # Secondary UI: Resample velocity axis
 
     if use_custom_velocity_axes_ui.value:
         custom_axes_controls = mo.hstack(
@@ -232,7 +228,7 @@ def _(
     stacking_mode_ui,
     stacking_window_ui,
 ):
-    # Build the conditional UI section for transitions selection
+    # Secondary UI: Select transitions and windows
 
     # Dynamic section for transitions selection
     if stacking_mode_ui.value == "Select from dataset":
@@ -278,19 +274,12 @@ def _(lines_fig, main_fig, mo, peak_shift, v_center):
             mo.md("# Impulse Response results"),
             mo.hstack(
                 [
-                    # mo.stat(
-                    #     label="Peak S/N", value=f"{peak_sn:.3f} km/s"
-                    # ),
                     mo.stat(
                         label="Recovered Shift", value=f"{peak_shift:.3f} km/s"
                     ),
                     mo.stat(
                         label="Line Centroid", value=f"{v_center:.3f} km/s"
                     ),
-                    # mo.stat(
-                    #     label="Detected velocity of first comp",
-                    #     value=f"{peak_vel:.3f:.3f} km/s",
-                    # ),
                 ],
                 justify="start",
             ),
@@ -487,8 +476,9 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(np, slim_freq_unit_ui, slim_table, spectra, u):
-    # Read SLIM and spec data to get the frequencies inside both input files
-    # before setting the rest of the UI.
+    # Read SLIM and spectra data to get the frequencies inside both input files
+    # before setting the rest of the UI. Then return list of molecules that are
+    # in the SLIM file and have transitions in the spectra files.
 
     # Set SLIM data
     slim_freq_unit = getattr(u, slim_freq_unit_ui.value)
@@ -503,10 +493,22 @@ def _(np, slim_freq_unit_ui, slim_table, spectra, u):
         )
     slim_table_freq = slim_table[freq_range_filter]
 
-    # Show to which molecules belong the transitions contained in the SLIM and
-    # spectra files
+    # Get molecules that have transitions in both the SLIM and spectra files
     mols = sorted(np.unique(slim_table_freq["Formula"]))
     return freq_range_filter, mols
+
+
+@app.cell(hide_code=True)
+def _(mo, mols):
+    # Post upload processing #1: Show molecules found in all of the input files 
+
+    mol_options = [str(m) for m in mols]
+    dataset_mols_selector_ui = mo.ui.dropdown(
+        options=mol_options,
+        value=mol_options[0],
+        label="Select Molecule from Dataset",
+    )
+    return (dataset_mols_selector_ui,)
 
 
 @app.cell(hide_code=True)
@@ -514,25 +516,11 @@ def _(dataset_mols_selector_ui, freq_range_filter, np, slim_table):
     # Read the user selected molecule to get the frequencies of said molecule
     # and show it to the user to select transitions
 
-    # molecule = molecule_ui.value
     molecule = dataset_mols_selector_ui.value
     molecule_filter = slim_table["Formula"] == molecule
     slim_table_mol_freq = slim_table[freq_range_filter & molecule_filter]
     freqs = sorted(np.unique(slim_table_mol_freq["Frequency"]))
     return freqs, slim_table_mol_freq
-
-
-@app.cell(hide_code=True)
-def _(mo, mols):
-    # Post upload processing #1: Show molecules found in all input 
-
-    mol_options = [str(m) for m in mols]
-    dataset_mols_selector_ui = mo.ui.dropdown(
-        options=mol_options,
-        value=mol_options[0],
-        label="Select Transitions from Dataset",
-    )
-    return (dataset_mols_selector_ui,)
 
 
 @app.cell(hide_code=True)
@@ -627,7 +615,6 @@ def _(freqs, mo):
         stacking_freqs_unit_ui,
         stacking_mode_ui,
         stacking_window_ui,
-        view_each_transition_ui,
     )
 
 
@@ -719,7 +706,6 @@ def _(
     stack_weighting_ui,
     stacking_window_ui,
     use_custom_velocity_axes_ui,
-    view_each_transition_ui,
 ):
     # Read parameters (marimo notebook version)
 
@@ -757,7 +743,8 @@ def _(
     resample_method = resample_method_ui.value
 
     # Logging
-    view_each_transition = view_each_transition_ui.value
+    # view_each_transition = view_each_transition_ui.value
+    view_each_transition = True
     return (
         baseline_window_params,
         custom_velocity_axes_params,
